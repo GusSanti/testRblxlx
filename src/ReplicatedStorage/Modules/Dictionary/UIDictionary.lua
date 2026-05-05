@@ -1,0 +1,115 @@
+------------------//VARIABLES
+local UIDictionary = {}
+
+UIDictionary.screenGuiName = "ChosenByGodHud"
+UIDictionary.rootName = "Root"
+UIDictionary.screens = {
+	saveSelection = "SaveSelection",
+	main = "Main",
+}
+
+UIDictionary.pages = {
+	options = "OptionsPage",
+	stats = "StatsPage",
+	quests = "QuestsPage",
+	inventory = "InventoryPage",
+	guild = "GuildPage",
+	shop = "ShopPage",
+	misc = "MiscPage",
+	settings = "SettingsPage",
+}
+
+UIDictionary.buttons = {
+	saveOne = "SaveOneButton",
+	saveTwo = "SaveTwoButton",
+	saveThree = "SaveThreeButton",
+	optionsTab = "OptionsTabButton",
+	statsTab = "StatsTabButton",
+	questsTab = "QuestsTabButton",
+	inventoryTab = "InventoryTabButton",
+	guildTab = "GuildTabButton",
+	shopTab = "ShopTabButton",
+	miscTab = "MiscTabButton",
+	settingsTab = "SettingsTabButton",
+	cultivate = "CultivateButton",
+	trophy = "TrophyButton",
+	punch = "PunchButton",
+	whack = "WhackButton",
+	block = "BlockButton",
+	storyQuest = "StoryQuestButton",
+	cryQuest = "CryQuestButton",
+	sleepQuest = "SleepQuestButton",
+	wiggleQuest = "WiggleQuestButton",
+	guildJoin = "GuildJoinButton",
+	guildCreate = "GuildCreateButton",
+	shopReincarnate = "ShopReincarnateButton",
+	shopEarly = "ShopEarlyButton",
+	shopGift = "ShopGiftButton",
+	miscLeaderboards = "MiscLeaderboardsButton",
+	miscStats = "MiscStatsButton",
+	miscCodes = "MiscCodesButton",
+	miscConsole = "MiscConsoleButton",
+	settingAbbreviations = "SettingAbbreviationsButton",
+	settingHardMode = "SettingHardModeButton",
+	settingAutoBreakthrough = "SettingAutoBreakthroughButton",
+}
+
+UIDictionary.labels = {
+	notice = "NoticeLabel",
+	saveOneInfo = "SaveOneInfoLabel",
+	saveTwoInfo = "SaveTwoInfoLabel",
+	saveThreeInfo = "SaveThreeInfoLabel",
+	worldValue = "WorldValue",
+	levelValue = "LevelValue",
+	expValue = "ExpValue",
+	focusValue = "FocusValue",
+	focusFill = "FocusFill",
+	mechanicValue = "MechanicValue",
+	cultivationValue = "CultivationValue",
+	ageValue = "AgeValue",
+	lifespanValue = "LifespanValue",
+	qiValue = "QiValue",
+	qiNeededValue = "QiNeededValue",
+	manualValue = "ManualValue",
+	bloodlineValue = "BloodlineValue",
+	statsValue = "StatsValue",
+	staminaValue = "StaminaValue",
+	foodValue = "FoodValue",
+	knowledgeValue = "KnowledgeValue",
+	staminaFill = "StaminaFill",
+	foodFill = "FoodFill",
+	knowledgeFill = "KnowledgeFill",
+	storyQuestStatus = "StoryQuestStatusLabel",
+	repeatQuestStatus = "RepeatQuestStatusLabel",
+	playerBattleStatus = "PlayerBattleStatusLabel",
+	inventoryValue = "InventoryValue",
+	guildValue = "GuildValue",
+	shopValue = "ShopValue",
+	miscValue = "MiscValue",
+	settingsValue = "SettingsValue",
+}
+
+UIDictionary.colors = {
+	background = Color3.fromRGB(14, 17, 24),
+	canvas = Color3.fromRGB(20, 24, 34),
+	panel = Color3.fromRGB(28, 34, 46),
+	card = Color3.fromRGB(36, 42, 56),
+	line = Color3.fromRGB(118, 128, 150),
+	text = Color3.fromRGB(246, 248, 255),
+	whiteText = Color3.fromRGB(255, 255, 255),
+	mutedText = Color3.fromRGB(172, 180, 198),
+	darkButton = Color3.fromRGB(56, 63, 82),
+	disabled = Color3.fromRGB(84, 90, 106),
+	jjk = Color3.fromRGB(124, 72, 214),
+	naruto = Color3.fromRGB(60, 132, 210),
+	stamina = Color3.fromRGB(84, 194, 189),
+	food = Color3.fromRGB(201, 91, 98),
+	knowledge = Color3.fromRGB(197, 66, 181),
+	blueAction = Color3.fromRGB(93, 129, 255),
+	redAction = Color3.fromRGB(226, 88, 74),
+	gold = Color3.fromRGB(232, 199, 72),
+	warning = Color3.fromRGB(255, 96, 96),
+}
+
+------------------//INIT
+return UIDictionary
