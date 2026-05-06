@@ -88,8 +88,11 @@ local TEMPLATE: PlayerData = {
 		pvpWins = 0,
 		questsCompleted = 0,
 		playtimeSeconds = 0,
+<<<<<<< HEAD
 		questProgress = {},
 		claimedQuests = {},
+=======
+>>>>>>> 3ac36b75a4295d65ddb41cabfbfbe12d7d0940b7
 	},
 	inventory = {
 		items = {

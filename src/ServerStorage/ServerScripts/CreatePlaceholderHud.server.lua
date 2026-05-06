@@ -349,6 +349,7 @@ local function create_stats_page(content: Frame): ()
 	create_button(actionPanel, UIDictionary.buttons.block, "Block", UDim2.fromScale(0.31, 0.56), UDim2.fromScale(0.38, 0.32), UIDictionary.colors.card, UIDictionary.colors.text)
 end
 
+<<<<<<< HEAD
 local function create_quest_card(parent: Instance, questDef: any, yPos: number): ()
 	local card = create_panel(parent, questDef.id .. "Card", UDim2.fromScale(0.05, yPos), UDim2.fromScale(0.9, 0.22))
 
@@ -399,6 +400,24 @@ local function create_quests_page(content: Frame): ()
 	end
 
 	create_label(panels["PVP"], UIDictionary.labels.playerBattleStatus, "Select a Player", UDim2.fromScale(0.05, 0.05), UDim2.fromScale(0.9, 0.06), UIDictionary.colors.warning, Enum.Font.GothamBlack, Enum.TextXAlignment.Center)
+=======
+local function create_quests_page(content: Frame): ()
+	local page = create_frame(content, UIDictionary.pages.quests, UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), UIDictionary.colors.canvas, false)
+	local columns = {
+		{title = "STORY QUESTS", x = 0.02},
+		{title = "SECT QUESTS", x = 0.35},
+		{title = "PLAYER BATTLES", x = 0.68},
+	}
+
+	for _, column in columns do
+		create_label(page, column.title .. "Title", column.title, UDim2.fromScale(column.x, 0.04), UDim2.fromScale(0.3, 0.08), UIDictionary.colors.text, Enum.Font.GothamBlack, Enum.TextXAlignment.Center)
+		create_panel(page, column.title .. "Panel", UDim2.fromScale(column.x, 0.14), UDim2.fromScale(0.3, 0.8))
+	end
+
+	create_label(page, UIDictionary.labels.storyQuestStatus, "Ready", UDim2.fromScale(0.05, 0.34), UDim2.fromScale(0.24, 0.06), UIDictionary.colors.text, Enum.Font.GothamBold, Enum.TextXAlignment.Center)
+	create_label(page, UIDictionary.labels.repeatQuestStatus, "Sect Quests (0/2)", UDim2.fromScale(0.38, 0.64), UDim2.fromScale(0.24, 0.06), UIDictionary.colors.text, Enum.Font.GothamBold, Enum.TextXAlignment.Center)
+	create_label(page, UIDictionary.labels.playerBattleStatus, "Select a Player", UDim2.fromScale(0.7, 0.84), UDim2.fromScale(0.26, 0.06), UIDictionary.colors.warning, Enum.Font.GothamBlack, Enum.TextXAlignment.Center)
+>>>>>>> 3ac36b75a4295d65ddb41cabfbfbe12d7d0940b7
 end
 
 local function create_inventory_page(content: Frame): ()

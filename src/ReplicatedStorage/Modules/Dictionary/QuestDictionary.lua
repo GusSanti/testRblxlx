@@ -1,9 +1,12 @@
+<<<<<<< HEAD
 ------------------//SERVICES
 -- N/A
 
 ------------------//CONSTANTS
 -- N/A
 
+=======
+>>>>>>> 3ac36b75a4295d65ddb41cabfbfbe12d7d0940b7
 ------------------//VARIABLES
 local QuestDictionary = {}
 
@@ -17,7 +20,10 @@ export type QuestDefinition = {
 	foodChange: number,
 	knowledgeChange: number,
 	repeatable: boolean,
+<<<<<<< HEAD
 	requiredProgress: number,
+=======
+>>>>>>> 3ac36b75a4295d65ddb41cabfbfbe12d7d0940b7
 }
 
 QuestDictionary.items = {
@@ -31,7 +37,10 @@ QuestDictionary.items = {
 		foodChange = 0,
 		knowledgeChange = 1,
 		repeatable = false,
+<<<<<<< HEAD
 		requiredProgress = 1,
+=======
+>>>>>>> 3ac36b75a4295d65ddb41cabfbfbe12d7d0940b7
 	},
 	CryLoudly = {
 		id = "CryLoudly",
@@ -43,7 +52,10 @@ QuestDictionary.items = {
 		foodChange = 0,
 		knowledgeChange = 0,
 		repeatable = true,
+<<<<<<< HEAD
 		requiredProgress = 3,
+=======
+>>>>>>> 3ac36b75a4295d65ddb41cabfbfbe12d7d0940b7
 	},
 	Sleep = {
 		id = "Sleep",
@@ -55,7 +67,10 @@ QuestDictionary.items = {
 		foodChange = 1,
 		knowledgeChange = 0,
 		repeatable = true,
+<<<<<<< HEAD
 		requiredProgress = 1,
+=======
+>>>>>>> 3ac36b75a4295d65ddb41cabfbfbe12d7d0940b7
 	},
 	WiggleAround = {
 		id = "WiggleAround",
@@ -67,7 +82,10 @@ QuestDictionary.items = {
 		foodChange = -1,
 		knowledgeChange = 1,
 		repeatable = true,
+<<<<<<< HEAD
 		requiredProgress = 5,
+=======
+>>>>>>> 3ac36b75a4295d65ddb41cabfbfbe12d7d0940b7
 	},
 }
 
@@ -84,4 +102,8 @@ function QuestDictionary.get_quest(questId: string): QuestDefinition?
 end
 
 ------------------//INIT
+<<<<<<< HEAD
 return QuestDictionary
+=======
+return QuestDictionary
+>>>>>>> 3ac36b75a4295d65ddb41cabfbfbe12d7d0940b7

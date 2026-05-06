@@ -205,6 +205,7 @@ local function render_stats_page(data: any): ()
 end
 
 local function render_quests_page(data: any): ()
+<<<<<<< HEAD
 	local QuestDictionaryLocal = require(dictionaryModules:WaitForChild("QuestDictionary") :: ModuleScript)
 	local questProgress = data.progress and data.progress.questProgress or {}
 	local claimedQuests = data.progress and data.progress.claimedQuests or {}
@@ -244,6 +245,15 @@ local function render_quests_page(data: any): ()
 			end
 		end
 	end
+=======
+	local storyDone  = table.find(data.storyQuests, "LookAround") ~= nil
+	local repeatDone = data.progress and data.progress.questsCompleted or 0
+	local battleDone = data.progress and data.progress.battleWins or 0
+
+	set_label_text(UIDictionary.labels.storyQuestStatus,   storyDone and "Completed" or "Ready")
+	set_label_text(UIDictionary.labels.repeatQuestStatus,  "Sect Quests (" .. tostring(math.min(repeatDone, 2)) .. "/2)")
+	set_label_text(UIDictionary.labels.playerBattleStatus, "Player Battles (" .. tostring(math.min(battleDone, 1)) .. "/1)")
+>>>>>>> 3ac36b75a4295d65ddb41cabfbfbe12d7d0940b7
 end
 
 local function render_inventory_page(data: any): ()
@@ -387,6 +397,7 @@ local function connect_actions(): ()
 	fix_zIndex_and_connect("SaveOneButton", "Onepiece")
 	fix_zIndex_and_connect("SaveTwoButton", "Naruto")
 	fix_zIndex_and_connect("SaveThreeButton", "JJK")
+<<<<<<< HEAD
 	
 	local QuestDictionaryLocal = require(dictionaryModules:WaitForChild("QuestDictionary") :: ModuleScript)
 	for _, questId in QuestDictionaryLocal.order do
@@ -397,6 +408,10 @@ local function connect_actions(): ()
 			end)
 		end
 	end
+=======
+
+	-- Conexões do restante do jogo
+>>>>>>> 3ac36b75a4295d65ddb41cabfbfbe12d7d0940b7
 	connect_button(UIDictionary.buttons.cultivate, run_train)
 	connect_button(UIDictionary.buttons.trophy, function()
 		set_notice("Achievements will connect after leaderboard data.")
