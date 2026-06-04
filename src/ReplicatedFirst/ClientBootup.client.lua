@@ -1,24 +1,30 @@
 ------------------//SERVICES
 local Players: Players = game:GetService("Players")
 local ReplicatedStorage: ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-------------------//CONSTANTS
-local PLAYER_SCRIPTS_FOLDER_NAME: string = "PlayerScripts"
+local StarterGui: StarterGui = game:GetService("StarterGui")
 
 ------------------//VARIABLES
-local player: Player = Players.LocalPlayer
-local playerScripts: PlayerScripts = player:WaitForChild("PlayerScripts") :: PlayerScripts
-local replicatedPlayerScripts: Folder = ReplicatedStorage:WaitForChild(PLAYER_SCRIPTS_FOLDER_NAME) :: Folder
+local localPlayer: Player = Players.LocalPlayer
+local playerScripts: PlayerScripts = localPlayer:WaitForChild("PlayerScripts")
+local sourceFolder: Folder = ReplicatedStorage:WaitForChild("PlayerScripts")
 
-------------------//FUNCTIONS
-local function move_player_scripts(): ()
-	local scripts = replicatedPlayerScripts:GetChildren()
-	for _, scriptObject in scripts do
-		if not playerScripts:FindFirstChild(scriptObject.Name) then
-			scriptObject.Parent = playerScripts
+task.spawn(function()
+	for _ = 1, 20 do
+		local ok = pcall(function()
+			StarterGui:SetCore("ResetButtonCallback", false)
+		end)
+
+		if ok then
+			return
 		end
+
+		task.wait(0.25)
+	end
+end)
+
+------------------//MAIN FUNCTIONS
+for _, scriptObj in sourceFolder:GetDescendants() do
+	if scriptObj:IsA("LocalScript") then
+		scriptObj.Parent = playerScripts
 	end
 end
-
-------------------//INIT
-move_player_scripts()
