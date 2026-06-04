@@ -18,6 +18,7 @@ MatchmakingDictionary.MATCH_SESSION_REMOTE_EVENT_NAME = "MatchSessionRemote"
 MatchmakingDictionary.PARTY_REMOTE_EVENT_NAME = "PartyRemote"
 MatchmakingDictionary.INVENTORY_REMOTE_EVENT_NAME = "InventoryRemote"
 MatchmakingDictionary.SHOP_REMOTE_EVENT_NAME = "ShopRemote"
+MatchmakingDictionary.DAILY_REWARD_REMOTE_EVENT_NAME = "DailyRewardRemote"
 
 MatchmakingDictionary.PLAYER_STATE_MAP_NAME = "MatchmakingPlayerState_v1"
 MatchmakingDictionary.MATCH_QUEUE_PREFIX = "MatchmakingQueue_v1_"

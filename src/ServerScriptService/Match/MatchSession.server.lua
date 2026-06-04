@@ -554,8 +554,10 @@ local function send_hud_state(player: Player): ()
 		timerRemaining = get_timer_remaining(),
 		maps = mapVotePayload.maps,
 		mapVotes = mapVotePayload.mapVotes,
+		mapVoteVoters = mapVotePayload.mapVoteVoters,
 		mapVoteOpen = mapVotePayload.mapVoteOpen,
 		myMapVote = mapVotePayload.myMapVote,
+		myTeamName = mapVotePayload.myTeamName,
 		selectedMapId = mapVotePayload.selectedMapId,
 		selectedMapName = mapVotePayload.selectedMapName,
 	})
@@ -1741,6 +1743,19 @@ local function configure_map_vote_service(): ()
 			return matchRunning and matchConfig ~= nil
 		end,
 		isTokenValid = is_phase_token_valid,
+		getVoteTeamName = function(userId: number): string?
+			if matchConfig and matchConfig.teamByUserId and matchConfig.teamByUserId[userId] then
+				return matchConfig.teamByUserId[userId]
+			end
+
+			local targetPlayer = Players:GetPlayerByUserId(userId)
+
+			if targetPlayer then
+				return get_player_team_name(targetPlayer)
+			end
+
+			return nil
+		end,
 	}, {
 		loadTimeout = LOAD_TIMEOUT,
 		mapVoteTime = MAP_VOTE_TIME,

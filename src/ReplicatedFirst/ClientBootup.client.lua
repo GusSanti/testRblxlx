@@ -1,15 +1,13 @@
-------------------//SERVICES
-local Players: Players = game:GetService("Players")
-local ReplicatedStorage: ReplicatedStorage = game:GetService("ReplicatedStorage")
-local StarterGui: StarterGui = game:GetService("StarterGui")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
 
-------------------//VARIABLES
-local localPlayer: Player = Players.LocalPlayer
-local playerScripts: PlayerScripts = localPlayer:WaitForChild("PlayerScripts")
-local sourceFolder: Folder = ReplicatedStorage:WaitForChild("PlayerScripts")
+local localPlayer = Players.LocalPlayer
+local playerScripts = localPlayer:WaitForChild("PlayerScripts")
+local sourceFolder = ReplicatedStorage:WaitForChild("PlayerScripts")
 
 task.spawn(function()
-	for _ = 1, 20 do
+	for attempt = 1, 20 do
 		local ok = pcall(function()
 			StarterGui:SetCore("ResetButtonCallback", false)
 		end)
@@ -22,9 +20,10 @@ task.spawn(function()
 	end
 end)
 
-------------------//MAIN FUNCTIONS
-for _, scriptObj in sourceFolder:GetDescendants() do
+local descendants = sourceFolder:GetDescendants()
+for _, scriptObj in ipairs(descendants) do
 	if scriptObj:IsA("LocalScript") then
+		print("[ClientBootup] Movendo LocalScript para PlayerScripts: " .. scriptObj:GetFullName())
 		scriptObj.Parent = playerScripts
 	end
 end

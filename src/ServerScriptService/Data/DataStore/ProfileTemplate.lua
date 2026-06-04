@@ -11,5 +11,13 @@ local ProfileTemplate = {
 	EquippedWeapon = "OldPistol",
 	WeaponsOwned = { "OldPistol" },
 	CurrentItems = {},
+	DailyRewards = {
+		StartDayStamp = 0,
+		ClaimedDays = 0,
+		LastClaimedAt = 0,
+		AvailableDays = 0,
+		ClaimableDays = 0,
+		CurrentDayStamp = 0,
+	},
 }
 return ProfileTemplate

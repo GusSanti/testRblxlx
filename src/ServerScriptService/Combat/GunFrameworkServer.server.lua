@@ -6,13 +6,43 @@ local Debris = game:GetService("Debris")
 local modules = ReplicatedStorage:WaitForChild("Modules")
 local librariesModules = modules:WaitForChild("Libraries")
 local gameModules = modules:WaitForChild("Game")
-local remotes = ReplicatedStorage:WaitForChild("Remotes")
-local fxFolder = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("FX")
+local assets = ReplicatedStorage:WaitForChild("Assets")
 
 local BodyDamage = require(gameModules:WaitForChild("BodyDamage"))
 local WeaponSettings = require(librariesModules:WaitForChild("WeaponSettings"))
-local WeaponRequest = remotes:WaitForChild("WeaponRequest")
-local WeaponFeedback = remotes:WaitForChild("WeaponFeedback")
+
+local function ensure_folder(parent, name)
+	local folder = parent:FindFirstChild(name)
+	if folder and folder:IsA("Folder") then
+		return folder
+	end
+
+	folder = Instance.new("Folder")
+	folder.Name = name
+	folder.Parent = parent
+	return folder
+end
+
+local function ensure_remote_event(parent, name)
+	local remote = parent:FindFirstChild(name)
+	if remote and remote:IsA("RemoteEvent") then
+		return remote
+	end
+
+	remote = Instance.new("RemoteEvent")
+	remote.Name = name
+	remote.Parent = parent
+	return remote
+end
+
+local remotes = ensure_folder(ReplicatedStorage, "Remotes")
+local fxFolder = assets:FindFirstChild("FX")
+local WeaponRequest = ensure_remote_event(remotes, "WeaponRequest")
+local WeaponFeedback = ensure_remote_event(remotes, "WeaponFeedback")
+
+if not fxFolder then
+	warn("[GunFrameworkServer] ReplicatedStorage.Assets.FX nao encontrado; efeitos de impacto serao ignorados.")
+end
 
 local PLAYER_STATES = {}
 local PLAYER_MOVE_STATES = {}
@@ -29,12 +59,42 @@ local ATTR_FROZEN = "GS_IsFrozen"
 local STRICT_CROSSHAIR_AIM = true
 
 local DEBUG_SHOT_SYSTEM = false
+local DEBUG_COMBAT = true
 local DEBUG_HIT_MARKER_LIFETIME = 0.2
 
 local HIT_HIGHLIGHT_DURATION = 0.5
 local DAMAGE_PART_DURATION = 1.2
 local HIT_HIGHLIGHT_FILL = Color3.fromRGB(255, 55, 55)
 local HIT_HIGHLIGHT_OUTLINE = Color3.fromRGB(150, 0, 0)
+
+local function debug_log(message)
+	if not DEBUG_COMBAT then
+		return
+	end
+
+	print("[GunFrameworkServer] " .. message)
+end
+
+local function describe_tool(tool)
+	if not tool then
+		return "nil"
+	end
+	if typeof(tool) ~= "Instance" then
+		return tostring(tool)
+	end
+
+	local parentName = if tool.Parent then tool.Parent.Name else "nil"
+	return string.format(
+		"%s parent=%s weaponKey=%s weaponId=%s hasHandle=%s",
+		tool.Name,
+		parentName,
+		tostring(tool:GetAttribute("WeaponKey")),
+		tostring(tool:GetAttribute("WeaponId")),
+		tostring(tool:FindFirstChild("Handle") ~= nil)
+	)
+end
+
+debug_log("Inicializado com WeaponRequest/WeaponFeedback prontos.")
 
 local function getDefaultWalkSpeedFromHumanoid(humanoid)
 	if not humanoid then
@@ -221,6 +281,10 @@ local function setDamageAmountText(instance, amount)
 end
 
 local function spawnDamagePart(position, normal, damageAmount)
+	if not fxFolder then
+		return
+	end
+
 	local damageTemplate = fxFolder:FindFirstChild("DamagePart")
 	if not damageTemplate then
 		return
@@ -413,6 +477,9 @@ local function spawnImpactFX(result, hitHumanoid)
 	if not result then
 		return
 	end
+	if not fxFolder then
+		return
+	end
 
 	if hitHumanoid then
 		local blood = fxFolder:FindFirstChild("BloodImpact")
@@ -593,6 +660,11 @@ local function getShotDirection(cfg, direction, isAiming)
 end
 
 WeaponRequest.OnServerEvent:Connect(function(player, action, tool, payload)
+	debug_log(
+		("Remote recebido de %s: action=%s tool=%s")
+			:format(player.Name, tostring(action), describe_tool(tool))
+	)
+
 	if action == "SetAiming" then
 		local aiming = false
 		if type(payload) == "table" then
@@ -604,6 +676,7 @@ WeaponRequest.OnServerEvent:Connect(function(player, action, tool, payload)
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		if not humanoid then
+			debug_log("SetAiming ignorado para " .. player.Name .. "; humanoid ausente.")
 			return
 		end
 
@@ -611,16 +684,19 @@ WeaponRequest.OnServerEvent:Connect(function(player, action, tool, payload)
 
 		if isPlayerFrozen(player) then
 			moveState.isAiming = false
+			debug_log("SetAiming ignorado para " .. player.Name .. "; player congelado.")
 			return
 		end
 
 		if aiming then
 			if not isValidEquippedTool(player, tool) then
+				debug_log("SetAiming rejeitado; tool invalida para " .. player.Name .. ": " .. describe_tool(tool))
 				return
 			end
 
 			local cfg = getConfig(tool)
 			if not cfg then
+				debug_log("SetAiming rejeitado; config nao encontrada para " .. player.Name .. ": " .. describe_tool(tool))
 				return
 			end
 
@@ -641,17 +717,20 @@ WeaponRequest.OnServerEvent:Connect(function(player, action, tool, payload)
 	end
 
 	if not isValidEquippedTool(player, tool) then
+		debug_log("Acao " .. tostring(action) .. " rejeitada; tool invalida para " .. player.Name .. ": " .. describe_tool(tool))
 		return
 	end
 
 	local cfg = getConfig(tool)
 	if not cfg then
+		debug_log("Acao " .. tostring(action) .. " rejeitada; config nao encontrada para " .. player.Name .. ": " .. describe_tool(tool))
 		return
 	end
 
 	local state = getState(player, tool, cfg)
 
 	if action == "Equip" then
+		debug_log("Equip confirmado para " .. player.Name .. " com " .. describe_tool(tool))
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		if humanoid then
@@ -669,12 +748,15 @@ WeaponRequest.OnServerEvent:Connect(function(player, action, tool, payload)
 
 	if action == "Reload" then
 		if state.isReloading then
+			debug_log("Reload ignorado para " .. player.Name .. "; ja esta recarregando.")
 			return
 		end
 		if state.ammo >= (cfg.MagSize or 30) then
+			debug_log("Reload ignorado para " .. player.Name .. "; pente cheio.")
 			return
 		end
 		if state.reserve <= 0 then
+			debug_log("Reload ignorado para " .. player.Name .. "; sem reserva.")
 			return
 		end
 
@@ -706,25 +788,30 @@ WeaponRequest.OnServerEvent:Connect(function(player, action, tool, payload)
 	end
 
 	if action ~= "Fire" then
+		debug_log("Acao desconhecida recebida de " .. player.Name .. ": " .. tostring(action))
 		return
 	end
 
 	if state.isReloading then
+		debug_log("Fire ignorado para " .. player.Name .. "; arma esta recarregando.")
 		return
 	end
 
 	local now = os.clock()
 	local shotDelay = getShotDelay(cfg)
 	if now - state.lastShotAt < shotDelay then
+		debug_log("Fire ignorado para " .. player.Name .. "; cooldown ainda ativo.")
 		return
 	end
 
 	if state.ammo <= 0 then
+		debug_log("Fire sem municao para " .. player.Name .. ".")
 		WeaponFeedback:FireClient(player, "DryFire", tool)
 		return
 	end
 
 	if type(payload) ~= "table" then
+		debug_log("Fire rejeitado para " .. player.Name .. "; payload invalido.")
 		return
 	end
 
@@ -738,15 +825,18 @@ WeaponRequest.OnServerEvent:Connect(function(player, action, tool, payload)
 	end
 
 	if typeof(origin) ~= "Vector3" or typeof(direction) ~= "Vector3" then
+		debug_log("Fire rejeitado para " .. player.Name .. "; origin/direction invalidos.")
 		return
 	end
 	if direction.Magnitude < 0.001 then
+		debug_log("Fire rejeitado para " .. player.Name .. "; direction muito pequena.")
 		return
 	end
 
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	if not root then
+		debug_log("Fire rejeitado para " .. player.Name .. "; root ausente.")
 		return
 	end
 
@@ -821,6 +911,10 @@ WeaponRequest.OnServerEvent:Connect(function(player, action, tool, payload)
 	end
 
 	emitMuzzleParticles(muzzle)
+	debug_log(
+		("Fire processado para %s: tool=%s ammoRestante=%d hitHumanoid=%s hitGroup=%s")
+			:format(player.Name, describe_tool(tool), state.ammo, tostring(hitHumanoid), tostring(hitGroup))
+	)
 
 	WeaponFeedback:FireAllClients("ShotFX", player, tool, muzzlePos, hitPos, hitNormal, hitHumanoid)
 

@@ -43,6 +43,7 @@ local BODY_TURN_AFTER_SHOT_TIME = 0.32
 local DEFAULT_BODY_TURN_LERP_SPEED = 30
 
 local DEBUG_SHOT_SYSTEM = false
+local DEBUG_COMBAT = true
 local DEBUG_SHOT_RAY_LENGTH = 120
 local DEBUG_SHOT_RAY_LIFETIME = 0.08
 local DEBUG_MAX_SHOT_CACHE = 40
@@ -53,9 +54,20 @@ local SOUND_EVENT_BY_LEGACY_NAME = {
 	EquipSound = "Equip",
 }
 
+local function ensureAnimator(targetHumanoid)
+	local currentAnimator = targetHumanoid:FindFirstChildOfClass("Animator")
+	if currentAnimator then
+		return currentAnimator
+	end
+
+	currentAnimator = Instance.new("Animator")
+	currentAnimator.Parent = targetHumanoid
+	return currentAnimator
+end
+
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
-local animator = humanoid:WaitForChild("Animator")
+local animator = ensureAnimator(humanoid)
 
 local boundTools = {}
 local containerConnections = {}
@@ -97,6 +109,52 @@ local active = {
 
 local crosshairGui
 local crosshairDot
+local lastDebugByKey = {}
+
+local function debug_log(message)
+	if not DEBUG_COMBAT then
+		return
+	end
+
+	print("[GunFrameworkClient] " .. message)
+end
+
+local function debug_throttled(key, interval, message)
+	if not DEBUG_COMBAT then
+		return
+	end
+
+	local now = os.clock()
+	local last = lastDebugByKey[key]
+	if last and now - last < interval then
+		return
+	end
+
+	lastDebugByKey[key] = now
+	debug_log(message)
+end
+
+local function describeTool(tool)
+	if not tool then
+		return "nil"
+	end
+	if typeof(tool) ~= "Instance" then
+		return tostring(tool)
+	end
+
+	local parentName = if tool.Parent then tool.Parent.Name else "nil"
+	local weaponKey = tool:GetAttribute("WeaponKey")
+	local weaponId = tool:GetAttribute("WeaponId")
+
+	return string.format(
+		"%s parent=%s weaponKey=%s weaponId=%s hasHandle=%s",
+		tool.Name,
+		parentName,
+		tostring(weaponKey),
+		tostring(weaponId),
+		tostring(tool:FindFirstChild("Handle") ~= nil)
+	)
+end
 
 local function createCrosshair()
 	if crosshairGui then
@@ -133,6 +191,8 @@ local function createCrosshair()
 end
 
 createCrosshair()
+
+debug_log("Script iniciado; aguardando binding de armas.")
 
 if player:GetAttribute(ATTR_ACTIVE) == nil then
 	player:SetAttribute(ATTR_ACTIVE, false)
@@ -415,9 +475,11 @@ end
 local function setAiming(aiming, suppressRemote)
 	aiming = aiming == true
 	if aiming and not active.tool then
+		debug_throttled("aim_without_tool", 0.5, "Tentativa de mirar sem arma ativa.")
 		return
 	end
 	if aiming and isPlayerFrozen() then
+		debug_throttled("aim_frozen", 0.5, "Tentativa de mirar enquanto o player esta congelado.")
 		return
 	end
 	if active.isAiming == aiming then
@@ -425,6 +487,7 @@ local function setAiming(aiming, suppressRemote)
 	end
 
 	active.isAiming = aiming
+	debug_log(("Aiming alterado para %s com tool=%s"):format(tostring(aiming), describeTool(active.tool)))
 	setDesiredRotationType(Enum.RotationType.MovementRelative)
 
 	applyAimAutoRotate()
@@ -1196,9 +1259,11 @@ end
 
 local function tryShoot()
 	if not active.tool or not active.config then
+		debug_throttled("shoot_without_tool", 0.5, ("tryShoot abortado; tool=%s config=%s"):format(describeTool(active.tool), tostring(active.config ~= nil)))
 		return
 	end
 	if active.reloading then
+		debug_throttled("shoot_reloading", 0.5, "tryShoot abortado; arma esta recarregando.")
 		return
 	end
 
@@ -1212,6 +1277,7 @@ local function tryShoot()
 	end
 
 	if active.ammo <= 0 then
+		debug_log("tryShoot sem municao para " .. describeTool(active.tool))
 		playSound(active.tool, "EmptySound")
 		return
 	end
@@ -1237,6 +1303,10 @@ local function tryShoot()
 		active.tracks.Recoil:Play(0.03)
 	end
 
+	debug_log(
+		("Enviando Fire para o servidor: tool=%s shotId=%d ammo=%d aiming=%s")
+			:format(describeTool(active.tool), shotId, active.ammo, tostring(active.isAiming))
+	)
 	WeaponRequest:FireServer("Fire", active.tool, {
 		origin = origin,
 		direction = direction,
@@ -1265,8 +1335,11 @@ end
 local function equipTool(tool)
 	local cfg, weaponKey = getConfig(tool)
 	if not cfg then
+		debug_log("equipTool abortado; configuracao nao encontrada para " .. describeTool(tool))
 		return
 	end
+
+	debug_log(("Equipando tool=%s resolvedKey=%s"):format(describeTool(tool), tostring(weaponKey)))
 
 	if active.tool and active.tool ~= tool then
 		stopTracks(active.tracks)
@@ -1308,6 +1381,8 @@ local function unequipTool(tool)
 	if active.tool ~= tool then
 		return
 	end
+
+	debug_log("Desequipando tool=" .. describeTool(tool))
 
 	setAiming(false)
 	stopTracks(active.tracks)
@@ -1370,17 +1445,23 @@ local function bindTool(tool)
 	if not tool:IsA("Tool") then
 		return
 	end
-	if not WeaponSettings.ResolveTool(tool) then
+
+	local resolvedWeaponKey = WeaponSettings.ResolveTool(tool)
+	debug_log(("bindTool encontrado: %s resolvedKey=%s"):format(describeTool(tool), tostring(resolvedWeaponKey)))
+	if not resolvedWeaponKey then
+		debug_log("bindTool ignorado; WeaponSettings nao reconheceu a tool " .. describeTool(tool))
 		return
 	end
 
 	local conns = {}
 
 	conns[#conns + 1] = tool.Equipped:Connect(function()
+		debug_log("Evento Equipped recebido para " .. describeTool(tool))
 		equipTool(tool)
 	end)
 
 	conns[#conns + 1] = tool.Unequipped:Connect(function()
+		debug_log("Evento Unequipped recebido para " .. describeTool(tool))
 		unequipTool(tool)
 	end)
 
@@ -1393,6 +1474,7 @@ local function bindTool(tool)
 
 	conns[#conns + 1] = tool.AncestryChanged:Connect(function(_, parent)
 		if not parent then
+			debug_log("Tool removida da hierarquia: " .. describeTool(tool))
 			if active.tool == tool then
 				unequipTool(tool)
 			end
@@ -1411,6 +1493,7 @@ local function clearContainerConnections()
 end
 
 local function bindContainer(container)
+	debug_log("Bindando container de armas: " .. container:GetFullName())
 	for _, child in ipairs(container:GetChildren()) do
 		if child:IsA("Tool") then
 			bindTool(child)
@@ -1419,6 +1502,7 @@ local function bindContainer(container)
 
 	local conn = container.ChildAdded:Connect(function(child)
 		if child:IsA("Tool") then
+			debug_log("Nova tool detectada em " .. container:GetFullName() .. ": " .. describeTool(child))
 			bindTool(child)
 		end
 	end)
@@ -1427,9 +1511,10 @@ local function bindContainer(container)
 end
 
 local function onCharacterAdded(newCharacter)
+	debug_log("CharacterAdded recebido no GunFrameworkClient: " .. newCharacter:GetFullName())
 	character = newCharacter
 	humanoid = character:WaitForChild("Humanoid")
-	animator = humanoid:WaitForChild("Animator")
+	animator = ensureAnimator(humanoid)
 	camera = workspace.CurrentCamera or camera
 
 	if active.tool then
@@ -1493,6 +1578,23 @@ player.CharacterAdded:Connect(onCharacterAdded)
 onCharacterAdded(character)
 
 UserInputService.InputBegan:Connect(function(input, processed)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.MouseButton2
+		or input.KeyCode == Enum.KeyCode.LeftShift
+	then
+		debug_log(
+			("InputBegan type=%s key=%s processed=%s activeTool=%s mouseBehavior=%s rotationType=%s")
+				:format(
+					tostring(input.UserInputType),
+					tostring(input.KeyCode),
+					tostring(processed),
+					describeTool(active.tool),
+					tostring(UserInputService.MouseBehavior),
+					tostring(userGameSettings.RotationType)
+				)
+		)
+	end
+
 	if processed then
 		return
 	end
@@ -1547,11 +1649,14 @@ RunService:BindToRenderStep(RENDER_STEP_NAME, Enum.RenderPriority.Camera.Value +
 end)
 
 WeaponFeedback.OnClientEvent:Connect(function(action, p1, p2, p3)
+	debug_throttled("feedback_" .. tostring(action), 0.15, "WeaponFeedback recebido: " .. tostring(action))
+
 	if action == "Ammo" then
 		local tool = p1
 		if active.tool == tool then
 			active.ammo = p2 or 0
 			active.reserve = p3 or 0
+			debug_log(("Municao sincronizada para %s: ammo=%d reserve=%d"):format(describeTool(tool), active.ammo, active.reserve))
 		end
 		return
 	end
@@ -1593,6 +1698,7 @@ WeaponFeedback.OnClientEvent:Connect(function(action, p1, p2, p3)
 	if action == "DryFire" then
 		local tool = p1
 		if active.tool == tool then
+			debug_log("Servidor retornou DryFire para " .. describeTool(tool))
 			playSound(tool, "EmptySound")
 		end
 		return
@@ -1601,6 +1707,7 @@ WeaponFeedback.OnClientEvent:Connect(function(action, p1, p2, p3)
 	if action == "ReloadStarted" then
 		local tool = p1
 		if active.tool == tool then
+			debug_log("Servidor confirmou inicio de reload para " .. describeTool(tool))
 			active.reloading = true
 			playSound(tool, "ReloadSound")
 
@@ -1619,6 +1726,7 @@ WeaponFeedback.OnClientEvent:Connect(function(action, p1, p2, p3)
 	if action == "ReloadFinished" then
 		local tool = p1
 		if active.tool == tool then
+			debug_log("Servidor confirmou fim de reload para " .. describeTool(tool))
 			active.reloading = false
 			clearReloadVisual()
 			updateMovementState()

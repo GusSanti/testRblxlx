@@ -28,6 +28,7 @@ type ServiceCallbacks = {
 	getLoadedPlayersInCharacters: () -> (number, number),
 	isMatchRunning: () -> boolean,
 	isTokenValid: (token: number) -> boolean,
+	getVoteTeamName: (userId: number) -> string?,
 }
 
 type ServiceOptions = {
@@ -177,6 +178,33 @@ function MapVoteService.create(callbacks: ServiceCallbacks, options: ServiceOpti
 		return get_map_config(winnerMapId)
 	end
 
+	local function build_vote_voters_payload(): { [string]: { [number]: { userId: number, teamName: string? } } }
+		local votersByMapId: { [string]: { [number]: { userId: number, teamName: string? } } } = {}
+
+		for _, mapConfig in mapConfigs do
+			votersByMapId[mapConfig.id] = {}
+		end
+
+		for userId, votedMapId in mapVoteByUserId do
+			local bucket = votersByMapId[votedMapId]
+
+			if bucket then
+				table.insert(bucket, {
+					userId = userId,
+					teamName = callbacks.getVoteTeamName(userId),
+				})
+			end
+		end
+
+		for _, voterList in votersByMapId do
+			table.sort(voterList, function(a: { userId: number, teamName: string? }, b: { userId: number, teamName: string? }): boolean
+				return a.userId < b.userId
+			end)
+		end
+
+		return votersByMapId
+	end
+
 	local service = {}
 
 	function service.reset_votes(): ()
@@ -193,6 +221,7 @@ function MapVoteService.create(callbacks: ServiceCallbacks, options: ServiceOpti
 	function service.get_hud_payload(userId: number, phase: string): { [string]: any }
 		local mapsPayload: { [number]: { id: string, image: string, displayName: string, path: string } } = {}
 		local votesPayload: { [string]: number } = {}
+		local votersPayload = build_vote_voters_payload()
 
 		for _, mapConfig in mapConfigs do
 			table.insert(mapsPayload, {
@@ -212,8 +241,10 @@ function MapVoteService.create(callbacks: ServiceCallbacks, options: ServiceOpti
 		return {
 			maps = mapsPayload,
 			mapVotes = votesPayload,
+			mapVoteVoters = votersPayload,
 			mapVoteOpen = isMapVotePhase,
 			myMapVote = mapVoteByUserId[userId],
+			myTeamName = callbacks.getVoteTeamName(userId),
 			selectedMapId = selectedMapId,
 			selectedMapName = selectedMapName,
 		}
