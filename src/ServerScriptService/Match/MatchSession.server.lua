@@ -42,6 +42,7 @@ local DATA_UTILITY_MODULE_NAME = "DataUtility"
 local KILL_COINS_REWARD = 15
 local KILL_XP_REWARD = 15
 local XP_PER_LEVEL = 100
+local CREATOR_WEAPON_VALUE_NAME = "creatorWeaponName"
 
 ------------------//VARIABLES
 type MatchConfig = {
@@ -71,6 +72,24 @@ type Participant = {
 type AnchorCache = {
 	rootPart: BasePart,
 	anchored: boolean,
+}
+
+type HudPlayerEntry = {
+	userId: number,
+	username: string,
+	displayName: string,
+	teamName: string,
+	kills: number,
+	level: number,
+	isAlive: boolean,
+}
+
+type KillPresentationPayload = {
+	killerUserId: number?,
+	killerUsername: string,
+	killerDisplayName: string,
+	killerLevel: number,
+	weaponName: string,
 }
 
 local remotesFolderInstance: Folder? = ReplicatedStorage:FindFirstChild(MatchmakingDictionary.REMOTE_FOLDER_NAME) :: Folder?
@@ -115,12 +134,17 @@ local matchStatsApplied = false
 local freezeCaches: { [Model]: FreezeCache } = {}
 local deathConnections: { [Model]: RBXScriptConnection } = {}
 local anchorCacheByModel: { [Model]: AnchorCache } = {}
+local matchKillsByUserId: { [number]: number } = {}
+local lastEliminationByVictimUserId: { [number]: KillPresentationPayload } = {}
+local lastRoundWinnerTeamName: string? = nil
 local didWarnMissingCharactersFolder = false
 local dataUtility: any = nil
 local mapVoteService: any = nil
 local deathmatchServerMap = MemoryStoreService:GetSortedMap(MatchmakingDictionary.DEATHMATCH_SERVER_MAP_NAME)
 
 local randomizer = Random.new()
+local get_player_team_name: (player: Player) -> string?
+local build_team_hud_players: (teamName: string) -> { HudPlayerEntry }
 
 ------------------//FUNCTIONS
 local function debug_log(message: string): ()
@@ -210,6 +234,48 @@ local function get_player_number_stat(player: Player, path: string, defaultValue
 	end
 
 	return math.floor(result)
+end
+
+local function get_player_level(player: Player): number
+	local level = get_player_number_stat(player, "Level", 1)
+
+	if level > 0 then
+		return level
+	end
+
+	local totalXp = get_player_number_stat(player, "XP", 0)
+
+	if totalXp <= 0 then
+		return 1
+	end
+
+	return math.max(1, math.floor(totalXp / XP_PER_LEVEL))
+end
+
+local function get_player_display_name(player: Player): string
+	if player.DisplayName ~= "" then
+		return player.DisplayName
+	end
+
+	return player.Name
+end
+
+local function get_match_kills(userId: number): number
+	return matchKillsByUserId[userId] or 0
+end
+
+local function add_match_kill(userId: number): ()
+	matchKillsByUserId[userId] = get_match_kills(userId) + 1
+end
+
+local function clear_round_hud_tracking(): ()
+	table.clear(lastEliminationByVictimUserId)
+	lastRoundWinnerTeamName = nil
+end
+
+local function reset_match_hud_tracking(): ()
+	table.clear(matchKillsByUserId)
+	clear_round_hud_tracking()
 end
 
 local function set_player_number_stat(player: Player, path: string, value: number): ()
@@ -531,9 +597,12 @@ local function get_timer_remaining(): number
 	return math.max(0, phaseEndsAt - os.time())
 end
 
-local function send_hud_state(player: Player): ()
+local function send_hud_state(player: Player, redPlayersOverride: { HudPlayerEntry }?, bluePlayersOverride: { HudPlayerEntry }?): ()
 	local isMatchServer = matchConfig ~= nil
 	local mapVotePayload = {}
+	local playerTeamName = get_player_team_name(player)
+	local redPlayers = redPlayersOverride or build_team_hud_players(TEAM_RED_NAME)
+	local bluePlayers = bluePlayersOverride or build_team_hud_players(TEAM_BLUE_NAME)
 
 	if mapVoteService and mapVoteService.get_hud_payload then
 		mapVotePayload = mapVoteService.get_hud_payload(player.UserId, phase)
@@ -550,8 +619,13 @@ local function send_hud_state(player: Player): ()
 		winnerName = winnerName,
 		phase = phase,
 		round = roundNumber,
+		roundWinnerTeam = lastRoundWinnerTeamName,
 		phaseEndsAt = phaseEndsAt,
 		timerRemaining = get_timer_remaining(),
+		playerTeamName = playerTeamName or mapVotePayload.myTeamName,
+		redPlayers = redPlayers,
+		bluePlayers = bluePlayers,
+		killPresentation = lastEliminationByVictimUserId[player.UserId],
 		maps = mapVotePayload.maps,
 		mapVotes = mapVotePayload.mapVotes,
 		mapVoteVoters = mapVotePayload.mapVoteVoters,
@@ -564,8 +638,11 @@ local function send_hud_state(player: Player): ()
 end
 
 local function broadcast_hud_state(): ()
+	local redPlayers = build_team_hud_players(TEAM_RED_NAME)
+	local bluePlayers = build_team_hud_players(TEAM_BLUE_NAME)
+
 	for _, player in Players:GetPlayers() do
-		send_hud_state(player)
+		send_hud_state(player, redPlayers, bluePlayers)
 	end
 end
 
@@ -722,7 +799,7 @@ local function count_round_participants(): number
 	return #participants
 end
 
-local function get_player_team_name(player: Player): string?
+get_player_team_name = function(player: Player): string?
 	if player.Team then
 		local teamName = player.Team.Name
 
@@ -742,6 +819,72 @@ local function get_player_team_name(player: Player): string?
 	end
 
 	return nil
+end
+
+local function is_player_alive(player: Player): boolean
+	local character = player.Character
+
+	if not character or not character:IsA("Model") then
+		return false
+	end
+
+	local humanoid = get_humanoid(character)
+
+	return humanoid ~= nil and humanoid.Health > 0
+end
+
+local function get_humanoid_weapon_name(humanoid: Humanoid): string
+	local value = humanoid:FindFirstChild(CREATOR_WEAPON_VALUE_NAME)
+
+	if value and value:IsA("StringValue") and value.Value ~= "" then
+		return value.Value
+	end
+
+	return "Unknown"
+end
+
+local function build_kill_presentation_payload(killerPlayer: Player, weaponName: string): KillPresentationPayload
+	return {
+		killerUserId = killerPlayer.UserId,
+		killerUsername = killerPlayer.Name,
+		killerDisplayName = get_player_display_name(killerPlayer),
+		killerLevel = get_player_level(killerPlayer),
+		weaponName = if weaponName ~= "" then weaponName else "Unknown",
+	}
+end
+
+build_team_hud_players = function(teamName: string): { HudPlayerEntry }
+	local teamPlayers: { HudPlayerEntry } = {}
+
+	for _, currentPlayer in Players:GetPlayers() do
+		if get_player_team_name(currentPlayer) ~= teamName then
+			continue
+		end
+
+		table.insert(teamPlayers, {
+			userId = currentPlayer.UserId,
+			username = currentPlayer.Name,
+			displayName = get_player_display_name(currentPlayer),
+			teamName = teamName,
+			kills = get_match_kills(currentPlayer.UserId),
+			level = get_player_level(currentPlayer),
+			isAlive = is_player_alive(currentPlayer),
+		})
+	end
+
+	table.sort(teamPlayers, function(a: HudPlayerEntry, b: HudPlayerEntry): boolean
+		if a.isAlive ~= b.isAlive then
+			return a.isAlive and not b.isAlive
+		end
+
+		if a.kills ~= b.kills then
+			return a.kills > b.kills
+		end
+
+		return string.lower(a.displayName) < string.lower(b.displayName)
+	end)
+
+	return teamPlayers
 end
 
 local function get_current_players_on_team(teamName: string, excludedUserId: number?): { Player }
@@ -1089,17 +1232,28 @@ local function apply_freeze_spawn_start(token: number): ()
 	end)
 end
 
-local function resolve_round_by_death(token: number, deadTeamName: string?): ()
+local function resolve_round_by_alive_counts(token: number): ()
 	if token ~= phaseRoundToken or phase ~= "Round" or pendingRoundWinner ~= nil then
 		return
 	end
 
-	if deadTeamName == TEAM_RED_NAME then
+	local redAlive = 0
+	local blueAlive = 0
+
+	for _, participant in get_round_participants() do
+		if participant.teamName == TEAM_RED_NAME then
+			redAlive += 1
+		elseif participant.teamName == TEAM_BLUE_NAME then
+			blueAlive += 1
+		end
+	end
+
+	if redAlive <= 0 and blueAlive > 0 then
 		pendingRoundWinner = TEAM_BLUE_NAME
 		return
 	end
 
-	if deadTeamName == TEAM_BLUE_NAME then
+	if blueAlive <= 0 and redAlive > 0 then
 		pendingRoundWinner = TEAM_RED_NAME
 	end
 end
@@ -1167,13 +1321,20 @@ local function bind_death_for_participant(participant: Participant, token: numbe
 
 		if matchRunning and phase == "Round" and creator and creator:IsA("ObjectValue") and creator.Value and creator.Value:IsA("Player") then
 			local killerPlayer = creator.Value :: Player
+			local weaponName = get_humanoid_weapon_name(humanoid)
 
 			if not participant.player or killerPlayer.UserId ~= participant.player.UserId then
+				add_match_kill(killerPlayer.UserId)
 				reward_player_for_kill(killerPlayer)
+			end
+
+			if participant.player then
+				lastEliminationByVictimUserId[participant.player.UserId] = build_kill_presentation_payload(killerPlayer, weaponName)
 			end
 		end
 
-		resolve_round_by_death(token, participant.teamName)
+		resolve_round_by_alive_counts(token)
+		broadcast_hud_state()
 	end)
 end
 
@@ -1366,6 +1527,7 @@ local function get_winner_name_for_team(teamName: string): string
 end
 
 local function run_round(token: number): boolean
+	clear_round_hud_tracking()
 	respawn_players_for_round()
 
 	if not wait_round_participants_ready(token) then
@@ -1417,6 +1579,7 @@ local function run_round(token: number): boolean
 		task.wait(0.1)
 	end
 
+	lastRoundWinnerTeamName = pendingRoundWinner
 	apply_round_winner_score(pendingRoundWinner)
 	clear_all_death_connections()
 
@@ -1452,6 +1615,7 @@ local function start_match_if_needed(): ()
 	quitLoserUserId = nil
 	matchEndedByQuit = false
 	matchStatsApplied = false
+	reset_match_hud_tracking()
 
 	if mapVoteService then
 		mapVoteService.reset_votes()
@@ -1581,6 +1745,7 @@ local function start_match_if_needed(): ()
 		apply_match_stats(finalWinnerTeamName, finalLoserTeamName, quitLoserUserId)
 		winnerTeamName = finalWinnerTeamName
 		winnerName = finalWinnerNameOverride or get_winner_name_for_team(finalWinnerTeamName)
+		lastRoundWinnerTeamName = finalWinnerTeamName
 		set_phase("MatchWin", WIN_SHOW_TIME)
 		wait_phase_timer(WIN_SHOW_TIME, phaseRoundToken)
 		if matchEndedByQuit then
@@ -1596,6 +1761,7 @@ local function start_match_if_needed(): ()
 		apply_match_stats(nil, finalLoserTeamName, quitLoserUserId)
 		winnerTeamName = "Quit"
 		winnerName = finalWinnerNameOverride or "Winner"
+		lastRoundWinnerTeamName = nil
 		set_phase("MatchWin", WIN_SHOW_TIME)
 		wait_phase_timer(WIN_SHOW_TIME, phaseRoundToken)
 		set_phase("FinishedQuit", 0)
@@ -1605,6 +1771,7 @@ local function start_match_if_needed(): ()
 
 	winnerTeamName = "Draw"
 	winnerName = "Draw"
+	lastRoundWinnerTeamName = nil
 	set_phase("Finished:Draw", 0)
 	teleport_players_to_public_lobby()
 end
@@ -1704,6 +1871,9 @@ end
 
 local function on_player_removing(player: Player): ()
 	local removedVote = false
+
+	matchKillsByUserId[player.UserId] = nil
+	lastEliminationByVictimUserId[player.UserId] = nil
 
 	if mapVoteService and mapVoteService.remove_player_vote then
 		removedVote = mapVoteService.remove_player_vote(player.UserId) == true

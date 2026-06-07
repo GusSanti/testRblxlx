@@ -41,6 +41,10 @@ local DEFAULT_WALK_SPEED = 16
 local MAX_UNBOOSTED_WALK_SPEED = 20
 local BODY_TURN_AFTER_SHOT_TIME = 0.32
 local DEFAULT_BODY_TURN_LERP_SPEED = 30
+local SHOULDER_POSE_R15_RIGHT = CFrame.new(0.08, -0.22, 0)
+local SHOULDER_POSE_R15_LEFT = CFrame.new(-0.08, -0.22, 0)
+local SHOULDER_POSE_R6_RIGHT = CFrame.new(0.05, -0.16, 0)
+local SHOULDER_POSE_R6_LEFT = CFrame.new(-0.05, -0.16, 0)
 
 local DEBUG_SHOT_SYSTEM = false
 local DEBUG_COMBAT = true
@@ -71,6 +75,11 @@ local animator = ensureAnimator(humanoid)
 
 local boundTools = {}
 local containerConnections = {}
+local shoulderMotors = {
+	right = nil,
+	left = nil,
+	defaultC0 = {},
+}
 
 local active = {
 	tool = nil,
@@ -208,6 +217,75 @@ local function deepFind(root, dottedPath)
 		current = current and current:FindFirstChild(token)
 	end
 	return current
+end
+
+local function findMotorByParts(part0Name, part1Name)
+	for _, descendant in ipairs(character:GetDescendants()) do
+		if descendant:IsA("Motor6D")
+			and descendant.Part0
+			and descendant.Part1
+			and descendant.Part0.Name == part0Name
+			and descendant.Part1.Name == part1Name
+		then
+			return descendant
+		end
+	end
+
+	return nil
+end
+
+local function refreshShoulderMotors()
+	shoulderMotors.right = nil
+	shoulderMotors.left = nil
+	shoulderMotors.defaultC0 = {}
+
+	if humanoid.RigType == Enum.HumanoidRigType.R15 then
+		shoulderMotors.right = findMotorByParts("UpperTorso", "RightUpperArm") or character:FindFirstChild("RightShoulder", true)
+		shoulderMotors.left = findMotorByParts("UpperTorso", "LeftUpperArm") or character:FindFirstChild("LeftShoulder", true)
+	else
+		shoulderMotors.right = findMotorByParts("Torso", "Right Arm") or character:FindFirstChild("Right Shoulder", true)
+		shoulderMotors.left = findMotorByParts("Torso", "Left Arm") or character:FindFirstChild("Left Shoulder", true)
+	end
+
+	if shoulderMotors.right and shoulderMotors.right:IsA("Motor6D") then
+		shoulderMotors.defaultC0[shoulderMotors.right] = shoulderMotors.right.C0
+	else
+		shoulderMotors.right = nil
+	end
+
+	if shoulderMotors.left and shoulderMotors.left:IsA("Motor6D") then
+		shoulderMotors.defaultC0[shoulderMotors.left] = shoulderMotors.left.C0
+	else
+		shoulderMotors.left = nil
+	end
+end
+
+local function applyWeaponShoulderPose(enabled)
+	local rightMotor = shoulderMotors.right
+	local leftMotor = shoulderMotors.left
+
+	if not rightMotor and not leftMotor then
+		return
+	end
+
+	local rightOffset = SHOULDER_POSE_R15_RIGHT
+	local leftOffset = SHOULDER_POSE_R15_LEFT
+	if humanoid.RigType ~= Enum.HumanoidRigType.R15 then
+		rightOffset = SHOULDER_POSE_R6_RIGHT
+		leftOffset = SHOULDER_POSE_R6_LEFT
+	end
+
+	if rightMotor then
+		local baseC0 = shoulderMotors.defaultC0[rightMotor] or rightMotor.C0
+		shoulderMotors.defaultC0[rightMotor] = baseC0
+		rightMotor.C0 = enabled and (baseC0 * rightOffset) or baseC0
+	end
+
+	if leftMotor then
+		local baseC0 = shoulderMotors.defaultC0[leftMotor] or leftMotor.C0
+		shoulderMotors.defaultC0[leftMotor] = baseC0
+		leftMotor.C0 = enabled and (baseC0 * leftOffset) or baseC0
+	end
 end
 
 local function getConfig(tool)
@@ -1360,6 +1438,7 @@ local function equipTool(tool)
 	bindReloadMarkers()
 
 	player:SetAttribute(ATTR_ACTIVE, true)
+	applyWeaponShoulderPose(true)
 
 	setAiming(false, true)
 	setBodyTurnAlignEnabled(false)
@@ -1385,6 +1464,7 @@ local function unequipTool(tool)
 	debug_log("Desequipando tool=" .. describeTool(tool))
 
 	setAiming(false)
+	applyWeaponShoulderPose(false)
 	stopTracks(active.tracks)
 	stopPoseTracks(0.06)
 	clearReloadVisual()
@@ -1516,6 +1596,7 @@ local function onCharacterAdded(newCharacter)
 	humanoid = character:WaitForChild("Humanoid")
 	animator = ensureAnimator(humanoid)
 	camera = workspace.CurrentCamera or camera
+	refreshShoulderMotors()
 
 	if active.tool then
 		unequipTool(active.tool)

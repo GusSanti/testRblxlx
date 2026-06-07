@@ -66,6 +66,7 @@ local HIT_HIGHLIGHT_DURATION = 0.5
 local DAMAGE_PART_DURATION = 1.2
 local HIT_HIGHLIGHT_FILL = Color3.fromRGB(255, 55, 55)
 local HIT_HIGHLIGHT_OUTLINE = Color3.fromRGB(150, 0, 0)
+local CREATOR_WEAPON_VALUE_NAME = "creatorWeaponName"
 
 local function debug_log(message)
 	if not DEBUG_COMBAT then
@@ -128,6 +129,24 @@ local function getConfig(tool)
 	end
 
 	return cfg
+end
+
+local function getWeaponName(tool)
+	if not tool then
+		return "Unknown"
+	end
+
+	if tool.Name ~= "" then
+		return tool.Name
+	end
+
+	local resolvedWeaponKey = WeaponSettings.ResolveTool(tool)
+
+	if resolvedWeaponKey then
+		return string.gsub(resolvedWeaponKey, "^v_", "")
+	end
+
+	return tool.Name
 end
 
 local function getShotDelay(cfg)
@@ -555,7 +574,7 @@ local function isFriendlyFire(shooter, victimPlayer, victimModel)
 	return shooterTeam ~= nil and shooterTeam == victimTeam
 end
 
-local function applyDamage(shooter, hitPart, cfg)
+local function applyDamage(shooter, tool, hitPart, cfg)
 	local model = hitPart and hitPart:FindFirstAncestorOfClass("Model")
 	local humanoid = model and model:FindFirstChildOfClass("Humanoid")
 	if not humanoid or humanoid.Health <= 0 then
@@ -581,11 +600,22 @@ local function applyDamage(shooter, hitPart, cfg)
 		oldCreator:Destroy()
 	end
 
+	local oldCreatorWeapon = humanoid:FindFirstChild(CREATOR_WEAPON_VALUE_NAME)
+	if oldCreatorWeapon then
+		oldCreatorWeapon:Destroy()
+	end
+
 	local creator = Instance.new("ObjectValue")
 	creator.Name = "creator"
 	creator.Value = shooter
 	creator.Parent = humanoid
 	Debris:AddItem(creator, 2)
+
+	local creatorWeapon = Instance.new("StringValue")
+	creatorWeapon.Name = CREATOR_WEAPON_VALUE_NAME
+	creatorWeapon.Value = getWeaponName(tool)
+	creatorWeapon.Parent = humanoid
+	Debris:AddItem(creatorWeapon, 2)
 
 	humanoid:TakeDamage(finalDamage)
 
@@ -890,7 +920,7 @@ WeaponRequest.OnServerEvent:Connect(function(player, action, tool, payload)
 		hitPos = result.Position
 		hitNormal = result.Normal
 
-		local didDamage, group, humanoidHit, damageDealt, damagedPart = applyDamage(player, result.Instance, cfg)
+		local didDamage, group, humanoidHit, damageDealt, damagedPart = applyDamage(player, tool, result.Instance, cfg)
 		hitHumanoid = didDamage
 		hitGroup = group
 
