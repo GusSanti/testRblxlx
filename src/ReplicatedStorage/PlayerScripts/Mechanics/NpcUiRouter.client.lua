@@ -17,6 +17,7 @@ type NpcUiConfig = {
 	screenGuiName: string,
 	openPath: { string },
 	closePaths: { { string } }?,
+	bindableEventName: string?,
 }
 
 local NPC_UI_CONFIG: { [string]: NpcUiConfig } = {
@@ -24,6 +25,16 @@ local NPC_UI_CONFIG: { [string]: NpcUiConfig } = {
 		pageName = "Shop",
 		screenGuiName = "Lobby",
 		openPath = {},
+	},
+	["Kash bxnds"] = {
+		screenGuiName = "CharacterCreatorGui",
+		openPath = {},
+		bindableEventName = "OpenFromNpc",
+	},
+	["Kash Bxnds"] = {
+		screenGuiName = "CharacterCreatorGui",
+		openPath = {},
+		bindableEventName = "OpenFromNpc",
 	},
 }
 
@@ -144,6 +155,19 @@ local function open_ui_for_npc(npcName: string, config: NpcUiConfig): ()
 	end
 
 	screenGui.Enabled = true
+
+	if config.bindableEventName and config.bindableEventName ~= "" then
+		local bindable = screenGui:FindFirstChild(config.bindableEventName)
+
+		if bindable and bindable:IsA("BindableEvent") then
+			bindable:Fire()
+			send_debug("NPC " .. npcName .. " abriu UI via evento.", "Info")
+			return
+		end
+
+		send_debug("BindableEvent '" .. config.bindableEventName .. "' nao encontrado para NPC " .. npcName .. ".", "Error")
+		return
+	end
 
 	if config.closePaths then
 		for _, closePath in config.closePaths do

@@ -9,6 +9,8 @@ local ItemsDataDictionary = require(ReplicatedStorage:WaitForChild("Modules"):Wa
 local modulesFolder: Folder = ReplicatedStorage:WaitForChild("Modules") :: Folder
 local utilityFolder: Folder = modulesFolder:WaitForChild("Utility") :: Folder
 local DataUtility = require(utilityFolder:WaitForChild("DataUtility"))
+local assetsFolder: Folder = ReplicatedStorage:WaitForChild("Assets") :: Folder
+local weaponsFolder: Folder = assetsFolder:WaitForChild("Weapons") :: Folder
 
 ------------------//VARIABLES
 local remotesFolderInstance: Folder? = ReplicatedStorage:FindFirstChild(MatchmakingDictionary.REMOTE_FOLDER_NAME) :: Folder?
@@ -45,12 +47,24 @@ local function has_weapon(weapons: { string }, weaponName: string): boolean
 	return false
 end
 
+local function is_supported_weapon_name(weaponName: string): boolean
+	if weaponName == "" then
+		return false
+	end
+
+	if ItemsDataDictionary.is_valid_weapon(weaponName) then
+		return true
+	end
+
+	return weaponsFolder:FindFirstChild(weaponName) ~= nil
+end
+
 local function normalize_owned_weapons(rawWeapons: any, rawLegacySkins: any): { string }
 	local validOwnedSet: { [string]: boolean } = {}
 
 	if typeof(rawWeapons) == "table" then
 		for _, value in rawWeapons do
-			if typeof(value) == "string" and ItemsDataDictionary.is_valid_weapon(value) then
+			if typeof(value) == "string" and is_supported_weapon_name(value) then
 				validOwnedSet[value] = true
 			end
 		end
@@ -58,7 +72,7 @@ local function normalize_owned_weapons(rawWeapons: any, rawLegacySkins: any): { 
 
 	if typeof(rawLegacySkins) == "table" then
 		for _, value in rawLegacySkins do
-			if typeof(value) == "string" and ItemsDataDictionary.is_valid_weapon(value) then
+			if typeof(value) == "string" and is_supported_weapon_name(value) then
 				validOwnedSet[value] = true
 			end
 		end
@@ -67,12 +81,26 @@ local function normalize_owned_weapons(rawWeapons: any, rawLegacySkins: any): { 
 	validOwnedSet[ItemsDataDictionary.DEFAULT_WEAPON] = true
 
 	local normalized: { string } = {}
-	local orderedWeapons = ItemsDataDictionary.get_weapon_names()
+	local insertedSet: { [string]: boolean } = {}
 
-	for _, weaponName in orderedWeapons do
+	for _, weaponName in ItemsDataDictionary.get_weapon_names() do
 		if validOwnedSet[weaponName] then
 			table.insert(normalized, weaponName)
+			insertedSet[weaponName] = true
 		end
+	end
+
+	local directWeaponNames: { string } = {}
+	for weaponName in validOwnedSet do
+		if not insertedSet[weaponName] then
+			table.insert(directWeaponNames, weaponName)
+		end
+	end
+
+	table.sort(directWeaponNames)
+
+	for _, weaponName in directWeaponNames do
+		table.insert(normalized, weaponName)
 	end
 
 	return normalized
@@ -95,12 +123,12 @@ local function ensure_player_inventory_defaults(player: Player): ()
 	local equippedWeaponName = ItemsDataDictionary.DEFAULT_WEAPON
 
 	if typeof(currentEquippedWeapon) == "string"
-		and ItemsDataDictionary.is_valid_weapon(currentEquippedWeapon)
+		and is_supported_weapon_name(currentEquippedWeapon)
 		and has_weapon(normalizedWeapons, currentEquippedWeapon)
 	then
 		equippedWeaponName = currentEquippedWeapon
 	elseif typeof(legacyEquippedSkin) == "string"
-		and ItemsDataDictionary.is_valid_weapon(legacyEquippedSkin)
+		and is_supported_weapon_name(legacyEquippedSkin)
 		and has_weapon(normalizedWeapons, legacyEquippedSkin)
 	then
 		equippedWeaponName = legacyEquippedSkin
@@ -111,7 +139,7 @@ local function ensure_player_inventory_defaults(player: Player): ()
 end
 
 local function equip_weapon(player: Player, weaponName: string): ()
-	if not ItemsDataDictionary.is_valid_weapon(weaponName) then
+	if not is_supported_weapon_name(weaponName) then
 		return
 	end
 

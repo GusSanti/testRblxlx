@@ -8,21 +8,16 @@ local TextChatService: TextChatService = game:GetService("TextChatService")
 local MatchmakingDictionary = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Dictionary"):WaitForChild("MatchmakingDictionary"))
 local ItemsDataDictionary = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Dictionary"):WaitForChild("ItemsDataDictionary"))
 local PagesClientService = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Game"):WaitForChild("PagesClientService"))
-local WeaponSettings = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Libraries"):WaitForChild("WeaponSettings"))
 
 local modulesFolder: Folder = ReplicatedStorage:WaitForChild("Modules") :: Folder
 local utilityFolder: Folder = modulesFolder:WaitForChild("Utility") :: Folder
 local DataUtility = require(utilityFolder:WaitForChild("DataUtility"))
-
-local assetsFolder: Folder = ReplicatedStorage:WaitForChild("Assets") :: Folder
-local weaponsFolder: Folder? = assetsFolder:FindFirstChild("Weapons") :: Folder?
+local WeaponViewport = require(utilityFolder:WaitForChild("WeaponViewport"))
 
 local DEBUG_PREFIX = "[ShopHud]"
 local SHOP_PAGE_NAME = "Shop"
 local OWNED_COLOR = Color3.fromRGB(255, 255, 255)
 local BUY_COLOR = Color3.fromRGB(80, 220, 110)
-local FALLBACK_WEAPON_COLOR = Color3.fromRGB(55, 55, 55)
-local FALLBACK_ACCENT_COLOR = Color3.fromRGB(150, 150, 150)
 
 local CHAT_COLORS = {
 	Info = Color3.fromRGB(185, 220, 255),
@@ -38,12 +33,7 @@ type WeaponConfig = {
 	rarity: string,
 }
 
-type WeaponAssetEntry = {
-	sourceName: string,
-	assetName: string,
-	asset: Instance,
-	resolvedWeaponKey: string?,
-}
+type WeaponAssetEntry = WeaponViewport.WeaponAssetEntry
 
 type ShopDisplayEntry = {
 	config: WeaponConfig,
@@ -79,6 +69,10 @@ local shopUi: ShopUiRefs? = nil
 local shopToggleButton: GuiButton? = nil
 local shopVisible = false
 local selectedWeaponName: string? = nil
+local currentDisplayEntries: { ShopDisplayEntry } = {}
+local currentOwnedWeapons: { string } = {}
+local currentCoins = 0
+local lastListSignature = ""
 
 local bindWeaponsConnection: { Disconnect: (self: any) -> () }? = nil
 local bindCoinsConnection: { Disconnect: (self: any) -> () }? = nil
@@ -133,11 +127,6 @@ local function send_debug(message: string, colorName: string?): ()
 	end)
 end
 
-local function normalize_lookup_token(value: string): string
-	local normalized = string.lower(value)
-	return string.gsub(normalized, "[^%w]", "")
-end
-
 local function has_weapon(ownedWeapons: { string }, weaponName: string): boolean
 	for _, ownedWeaponName in ownedWeapons do
 		if ownedWeaponName == weaponName then
@@ -148,12 +137,20 @@ local function has_weapon(ownedWeapons: { string }, weaponName: string): boolean
 	return false
 end
 
+local function is_supported_weapon_name(weaponName: string): boolean
+	if weaponName == "" then
+		return false
+	end
+
+	return ItemsDataDictionary.is_valid_weapon(weaponName) or WeaponViewport.has_weapon_asset(weaponName)
+end
+
 local function normalize_owned_weapons(rawWeapons: any): { string }
 	local validOwnedSet: { [string]: boolean } = {}
 
 	if typeof(rawWeapons) == "table" then
 		for _, value in rawWeapons do
-			if typeof(value) == "string" and ItemsDataDictionary.is_valid_weapon(value) then
+			if typeof(value) == "string" and is_supported_weapon_name(value) then
 				validOwnedSet[value] = true
 			end
 		end
@@ -203,290 +200,6 @@ local function set_activate_handler(target: GuiObject, callback: () -> ()): ()
 			callback()
 		end
 	end)
-end
-
-local function clear_viewport(viewport: ViewportFrame): ()
-	for _, child in viewport:GetChildren() do
-		child:Destroy()
-	end
-
-	viewport.CurrentCamera = nil
-end
-
-local function is_weapon_tool(instance: Instance?): boolean
-	return instance ~= nil and instance:IsA("Tool") and instance:FindFirstChild("WeaponConfig") ~= nil
-end
-
-local function get_tool_from_instance(instance: Instance?): Tool?
-	if not instance then
-		return nil
-	end
-
-	if is_weapon_tool(instance) then
-		return instance :: Tool
-	end
-
-	local nestedTool = instance:FindFirstChildWhichIsA("Tool", true)
-	if is_weapon_tool(nestedTool) then
-		return nestedTool :: Tool
-	end
-
-	return nil
-end
-
-local function get_display_asset_from_instance(instance: Instance?): Instance?
-	if not instance then
-		return nil
-	end
-
-	local tool = get_tool_from_instance(instance)
-	if tool then
-		return tool
-	end
-
-	if instance:IsA("Model") then
-		return instance
-	end
-
-	local nestedModel = instance:FindFirstChildWhichIsA("Model", true)
-	if nestedModel then
-		return nestedModel
-	end
-
-	if instance:FindFirstChildWhichIsA("BasePart", true) then
-		return instance
-	end
-
-	return nil
-end
-
-local function get_available_weapon_assets(): { WeaponAssetEntry }
-	local entries: { WeaponAssetEntry } = {}
-	local seen: { [string]: boolean } = {}
-
-	local function register_from_container(container: Instance?): ()
-		if not container then
-			return
-		end
-
-		for _, child in container:GetChildren() do
-			local asset = get_display_asset_from_instance(child)
-
-			if not asset then
-				continue
-			end
-
-			local sourceName = child.Name
-			local assetName = asset.Name
-			local dedupeKey = sourceName .. "|" .. assetName
-
-			if seen[dedupeKey] then
-				continue
-			end
-
-			seen[dedupeKey] = true
-
-			local resolvedWeaponKey: string? = nil
-			if asset:IsA("Tool") then
-				resolvedWeaponKey = WeaponSettings.ResolveTool(asset)
-			else
-				resolvedWeaponKey = WeaponSettings.ResolveWeaponKey(assetName)
-			end
-
-			table.insert(entries, {
-				sourceName = sourceName,
-				assetName = assetName,
-				asset = asset,
-				resolvedWeaponKey = resolvedWeaponKey,
-			})
-		end
-	end
-
-	register_from_container(weaponsFolder)
-
-	return entries
-end
-
-local function resolve_asset_entry_for_weapon(
-	weaponName: string,
-	assetEntries: { WeaponAssetEntry },
-	assignedAssets: { [number]: boolean }
-): WeaponAssetEntry?
-	if weaponName == "" then
-		return nil
-	end
-
-	local normalizedWeaponName = normalize_lookup_token(weaponName)
-	local resolvedWeaponKey = WeaponSettings.ResolveWeaponKey(weaponName)
-
-	local function collect_matches(predicate: (WeaponAssetEntry) -> boolean): { { index: number, entry: WeaponAssetEntry } }
-		local matches: { { index: number, entry: WeaponAssetEntry } } = {}
-
-		for index, entry in assetEntries do
-			if not assignedAssets[index] and predicate(entry) then
-				table.insert(matches, {
-					index = index,
-					entry = entry,
-				})
-			end
-		end
-
-		return matches
-	end
-
-	local directMatches = collect_matches(function(entry: WeaponAssetEntry): boolean
-		return entry.sourceName == weaponName or entry.assetName == weaponName
-	end)
-
-	if #directMatches == 1 then
-		local match = directMatches[1]
-		assignedAssets[match.index] = true
-		return match.entry
-	end
-
-	local normalizedMatches = collect_matches(function(entry: WeaponAssetEntry): boolean
-		return normalize_lookup_token(entry.sourceName) == normalizedWeaponName
-			or normalize_lookup_token(entry.assetName) == normalizedWeaponName
-	end)
-
-	if #normalizedMatches == 1 then
-		local match = normalizedMatches[1]
-		assignedAssets[match.index] = true
-		return match.entry
-	end
-
-	if resolvedWeaponKey then
-		local keyMatches = collect_matches(function(entry: WeaponAssetEntry): boolean
-			return entry.resolvedWeaponKey == resolvedWeaponKey
-		end)
-
-		if #keyMatches == 1 then
-			local match = keyMatches[1]
-			assignedAssets[match.index] = true
-			return match.entry
-		end
-	end
-
-	return nil
-end
-
-local function clone_display_asset(instance: Instance): Model?
-	local originalArchivable = instance.Archivable
-	instance.Archivable = true
-
-	local success, cloneResult = pcall(function()
-		return instance:Clone()
-	end)
-
-	instance.Archivable = originalArchivable
-
-	if not success or not cloneResult or not cloneResult:IsA("Instance") then
-		return nil
-	end
-
-	local clone: Instance = cloneResult
-	local model: Model
-
-	if clone:IsA("Model") then
-		model = clone
-	else
-		model = Instance.new("Model")
-		model.Name = clone.Name
-
-		for _, child in clone:GetChildren() do
-			child.Parent = model
-		end
-
-		clone:Destroy()
-	end
-
-	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("Script") or descendant:IsA("LocalScript") then
-			descendant:Destroy()
-		elseif descendant:IsA("BasePart") then
-			descendant.Anchored = true
-			descendant.CanCollide = false
-			descendant.CanTouch = false
-			descendant.CanQuery = false
-		end
-	end
-
-	if not model:FindFirstChildWhichIsA("BasePart", true) then
-		model:Destroy()
-		return nil
-	end
-
-	return model
-end
-
-local function build_placeholder_weapon_model(): Model
-	local model = Instance.new("Model")
-	model.Name = "WeaponPlaceholder"
-
-	local body = Instance.new("Part")
-	body.Name = "Body"
-	body.Size = Vector3.new(2.6, 0.4, 0.55)
-	body.Color = FALLBACK_WEAPON_COLOR
-	body.Material = Enum.Material.SmoothPlastic
-	body.CFrame = CFrame.new(0, 0.35, 0)
-	body.Anchored = true
-	body.CanCollide = false
-	body.CanTouch = false
-	body.CanQuery = false
-	body.Parent = model
-
-	local barrel = Instance.new("Part")
-	barrel.Name = "Barrel"
-	barrel.Size = Vector3.new(1.2, 0.18, 0.18)
-	barrel.Color = FALLBACK_ACCENT_COLOR
-	barrel.Material = Enum.Material.Metal
-	barrel.CFrame = CFrame.new(1.75, 0.42, 0)
-	barrel.Anchored = true
-	barrel.CanCollide = false
-	barrel.CanTouch = false
-	barrel.CanQuery = false
-	barrel.Parent = model
-
-	local grip = Instance.new("Part")
-	grip.Name = "Grip"
-	grip.Size = Vector3.new(0.4, 0.9, 0.32)
-	grip.Color = FALLBACK_ACCENT_COLOR
-	grip.Material = Enum.Material.Metal
-	grip.CFrame = CFrame.new(-0.55, -0.3, 0) * CFrame.Angles(0, 0, math.rad(18))
-	grip.Anchored = true
-	grip.CanCollide = false
-	grip.CanTouch = false
-	grip.CanQuery = false
-	grip.Parent = model
-
-	return model
-end
-
-local function render_weapon_viewport(viewport: ViewportFrame, assetEntry: WeaponAssetEntry?): boolean
-	clear_viewport(viewport)
-
-	local displayModel = if assetEntry then clone_display_asset(assetEntry.asset) else nil
-
-	if not displayModel then
-		displayModel = build_placeholder_weapon_model()
-	end
-
-	local worldModel = Instance.new("WorldModel")
-	worldModel.Parent = viewport
-	displayModel.Parent = worldModel
-
-	local camera = Instance.new("Camera")
-	camera.Parent = viewport
-	viewport.CurrentCamera = camera
-
-	local boundingCFrame, boundingSize = displayModel:GetBoundingBox()
-	local maxAxis = math.max(boundingSize.X, boundingSize.Y, boundingSize.Z, 1)
-	local focusPosition = boundingCFrame.Position
-	local cameraOffset = Vector3.new(maxAxis * 1.15, maxAxis * 0.45, maxAxis * 1.8)
-
-	camera.FieldOfView = 28
-	camera.CFrame = CFrame.lookAt(focusPosition + cameraOffset, focusPosition)
-	return true
 end
 
 local function get_page_object_for_candidate(candidate: GuiObject): GuiObject
@@ -606,16 +319,27 @@ local function find_shop_page(): ShopUiRefs?
 end
 
 local function find_shop_toggle_button(): GuiButton?
-	local holder = lobbyGui:FindFirstChild("Holder")
+	local hud = lobbyGui:FindFirstChild("HUD")
 
-	if not holder then
-		return nil
+	if hud and hud:IsA("GuiObject") then
+		local hudButton = hud:FindFirstChild("Shop")
+		if hudButton and hudButton:IsA("GuiButton") then
+			return hudButton
+		end
 	end
 
-	local button = holder:FindFirstChild("Shop")
+	local holder = lobbyGui:FindFirstChild("Holder")
 
-	if button and button:IsA("GuiButton") then
-		return button
+	if holder then
+		local holderButton = holder:FindFirstChild("Shop")
+		if holderButton and holderButton:IsA("GuiButton") then
+			return holderButton
+		end
+	end
+
+	local directButton = lobbyGui:FindFirstChild("Shop")
+	if directButton and directButton:IsA("GuiButton") then
+		return directButton
 	end
 
 	return nil
@@ -631,6 +355,20 @@ local function clear_shop_items(refs: ShopUiRefs): ()
 	refs.itemTemplate.Visible = false
 end
 
+local function get_display_entry_by_name(displayEntries: { ShopDisplayEntry }, weaponName: string?): ShopDisplayEntry?
+	if not weaponName then
+		return nil
+	end
+
+	for _, displayEntry in displayEntries do
+		if displayEntry.config.name == weaponName then
+			return displayEntry
+		end
+	end
+
+	return nil
+end
+
 local function set_shop_visible(visible: boolean): ()
 	if visible then
 		PagesClientService.open_page(SHOP_PAGE_NAME)
@@ -642,32 +380,15 @@ end
 
 local function get_shop_display_entries(): { ShopDisplayEntry }
 	local weaponConfigs = ItemsDataDictionary.get_weapons_sorted_by_rarity()
-	local assetEntries = get_available_weapon_assets()
+	local assetEntries = WeaponViewport.get_available_weapon_assets()
 	local displayEntries: { ShopDisplayEntry } = {}
 	local assignedAssets: { [number]: boolean } = {}
 
 	for _, weaponConfig in weaponConfigs do
 		table.insert(displayEntries, {
 			config = weaponConfig,
-			assetEntry = resolve_asset_entry_for_weapon(weaponConfig.name, assetEntries, assignedAssets),
+			assetEntry = WeaponViewport.resolve_asset_entry_for_weapon(weaponConfig.name, assetEntries, assignedAssets),
 		})
-	end
-
-	local nextFallbackIndex = 1
-
-	for _, displayEntry in displayEntries do
-		if displayEntry.assetEntry == nil then
-			while assetEntries[nextFallbackIndex] and assignedAssets[nextFallbackIndex] do
-				nextFallbackIndex += 1
-			end
-
-			local fallbackAssetEntry = assetEntries[nextFallbackIndex]
-			if fallbackAssetEntry then
-				displayEntry.assetEntry = fallbackAssetEntry
-				assignedAssets[nextFallbackIndex] = true
-				nextFallbackIndex += 1
-			end
-		end
 	end
 
 	return displayEntries
@@ -697,7 +418,7 @@ local function render_shop_details(refs: ShopUiRefs, displayEntry: ShopDisplayEn
 	refs.detailRarityLabel.Text = weaponConfig.rarity
 	refs.detailPriceLabel.Text = "$" .. tostring(weaponConfig.price)
 
-	render_weapon_viewport(refs.detailViewport, displayEntry.assetEntry)
+	WeaponViewport.render_weapon_viewport(refs.detailViewport, displayEntry.assetEntry or weaponConfig.name)
 
 	refs.detailActionText.Text = if isOwned then "Owned" else "Buy"
 	set_image_or_background_color(refs.detailActionButton, if isOwned then OWNED_COLOR else BUY_COLOR)
@@ -706,6 +427,71 @@ local function render_shop_details(refs: ShopUiRefs, displayEntry: ShopDisplayEn
 		refs.detailActionButton.Active = not isOwned
 		refs.detailActionButton.AutoButtonColor = not isOwned
 	end
+end
+
+local function render_shop_selection_details(): ()
+	local refs = shopUi
+
+	if not refs then
+		return
+	end
+
+	refs.moneyCountLabel.Text = "$" .. tostring(currentCoins)
+	selectedWeaponName = get_selected_weapon(currentDisplayEntries, currentOwnedWeapons)
+
+	if not selectedWeaponName then
+		refs.detailNameLabel.Text = "No Weapon"
+		refs.detailRarityLabel.Text = "-"
+		refs.detailPriceLabel.Text = "$0"
+		refs.detailActionText.Text = "Owned"
+		set_image_or_background_color(refs.detailActionButton, OWNED_COLOR)
+		WeaponViewport.clear_viewport(refs.detailViewport)
+
+		if refs.detailActionButton:IsA("GuiButton") then
+			refs.detailActionButton.Active = false
+			refs.detailActionButton.AutoButtonColor = false
+		end
+
+		return
+	end
+
+	local selectedDisplayEntry = get_display_entry_by_name(currentDisplayEntries, selectedWeaponName)
+
+	if not selectedDisplayEntry then
+		return
+	end
+
+	render_shop_details(refs, selectedDisplayEntry, has_weapon(currentOwnedWeapons, selectedDisplayEntry.config.name))
+end
+
+local function rebuild_shop_list(refs: ShopUiRefs, displayEntries: { ShopDisplayEntry }): number
+	clear_shop_items(refs)
+
+	local itemCount = 0
+
+	for index, displayEntry in displayEntries do
+		local weaponConfig = displayEntry.config
+		itemCount += 1
+
+		local row = refs.itemTemplate:Clone()
+		row.Name = "ShopItem_" .. weaponConfig.name
+		row.Visible = true
+		row.LayoutOrder = index
+
+		local viewport = row:FindFirstChild("ViewportFrame")
+		if viewport and viewport:IsA("ViewportFrame") then
+			WeaponViewport.render_weapon_viewport(viewport, displayEntry.assetEntry or weaponConfig.name)
+		end
+
+		set_activate_handler(row, function()
+			selectedWeaponName = weaponConfig.name
+			render_shop_selection_details()
+		end)
+
+		row.Parent = refs.itemsScrollingFrame
+	end
+
+	return itemCount
 end
 
 local function render_shop(): ()
@@ -719,55 +505,32 @@ local function render_shop(): ()
 	local ownedWeapons = normalize_owned_weapons(DataUtility.client.get("WeaponsOwned"))
 	local coins = get_player_coins()
 
-	selectedWeaponName = get_selected_weapon(displayEntries, ownedWeapons)
-	clear_shop_items(refs)
-
-	local itemCount = 0
-
+	local listSignatureParts: { string } = {}
 	for _, displayEntry in displayEntries do
-		local weaponConfig = displayEntry.config
-		itemCount += 1
-
-		local row = refs.itemTemplate:Clone()
-		row.Name = "ShopItem_" .. weaponConfig.name
-		row.Visible = true
-
-		local viewport = row:FindFirstChild("ViewportFrame")
-		if viewport and viewport:IsA("ViewportFrame") then
-			render_weapon_viewport(viewport, displayEntry.assetEntry)
-		end
-
-		set_activate_handler(row, function()
-			selectedWeaponName = weaponConfig.name
-			render_shop()
-		end)
-
-		row.Parent = refs.itemsScrollingFrame
+		local assetToken = if displayEntry.assetEntry then displayEntry.assetEntry.sourceName else "placeholder"
+		table.insert(listSignatureParts, displayEntry.config.name .. ":" .. assetToken)
 	end
 
-	refs.moneyCountLabel.Text = "$" .. tostring(coins)
+	local listSignature = table.concat(listSignatureParts, "|")
+	local itemCount = #displayEntries
 
-	if not selectedWeaponName then
-		refs.detailNameLabel.Text = "No Weapon"
-		refs.detailRarityLabel.Text = "-"
-		refs.detailPriceLabel.Text = "$0"
-		refs.detailActionText.Text = "Owned"
-		set_image_or_background_color(refs.detailActionButton, OWNED_COLOR)
-		clear_viewport(refs.detailViewport)
-	else
-		for _, displayEntry in displayEntries do
-			if displayEntry.config.name == selectedWeaponName then
-				render_shop_details(refs, displayEntry, has_weapon(ownedWeapons, displayEntry.config.name))
-				break
-			end
-		end
+	currentDisplayEntries = displayEntries
+	currentOwnedWeapons = ownedWeapons
+	currentCoins = coins
+	selectedWeaponName = get_selected_weapon(currentDisplayEntries, currentOwnedWeapons)
+
+	if listSignature ~= lastListSignature then
+		lastListSignature = listSignature
+		itemCount = rebuild_shop_list(refs, currentDisplayEntries)
 	end
+
+	render_shop_selection_details()
 
 	local signatureParts: { string } = { tostring(coins) }
 
-	for _, displayEntry in displayEntries do
+	for _, displayEntry in currentDisplayEntries do
 		local assetToken = if displayEntry.assetEntry then displayEntry.assetEntry.sourceName else "placeholder"
-		table.insert(signatureParts, displayEntry.config.name .. ":" .. assetToken .. ":" .. tostring(has_weapon(ownedWeapons, displayEntry.config.name)))
+		table.insert(signatureParts, displayEntry.config.name .. ":" .. assetToken .. ":" .. tostring(has_weapon(currentOwnedWeapons, displayEntry.config.name)))
 	end
 
 	local signature = table.concat(signatureParts, "|")

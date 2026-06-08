@@ -2,17 +2,24 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local items = ReplicatedStorage.Assets:WaitForChild("CharacterItems")
 local CharacterCreatorEvent = ReplicatedStorage.Remotes:WaitForChild("CharacterCreatorEvent")
 
+local screenGui = script.Parent
 local frame = script.Parent:WaitForChild("CreatorFrame")
-local button = script.Parent:WaitForChild("OpenGuiTextButton")
+local button = script.Parent:FindFirstChild("OpenGuiTextButton")
+local openFromNpcEvent = screenGui:FindFirstChild("OpenFromNpc")
+if not openFromNpcEvent or not openFromNpcEvent:IsA("BindableEvent") then
+	openFromNpcEvent = Instance.new("BindableEvent")
+	openFromNpcEvent.Name = "OpenFromNpc"
+	openFromNpcEvent.Parent = screenGui
+end
+
 frame.Visible = false
-button.Visible = true
+if button and button:IsA("GuiObject") then
+	button.Visible = false
+end
 
 local currentItems = {}
 
-
---Open and close GUI
-button.MouseButton1Click:Connect(function()
-
+local function open_character_creator()
 	currentItems = {}
 	for i, currentItem in pairs(game.Players.LocalPlayer:WaitForChild("CurrentItems"):GetChildren()) do
 		table.insert(currentItems, currentItem.Name)
@@ -23,6 +30,10 @@ button.MouseButton1Click:Connect(function()
 	end
 
 	local character = game.Players.LocalPlayer.Character
+	if not character then
+		return
+	end
+
 	character.Archivable = true
 	local characterModel = character:Clone()
 	characterModel.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
@@ -36,12 +47,25 @@ button.MouseButton1Click:Connect(function()
 
 	characterModel.Parent = frame.CharacterViewportFrame
 
-	button.Visible = false
 	frame.Visible = true
 
-	local blur = Instance.new("BlurEffect")
-	blur.Name = "CharacterCreatorBlur"
-	blur.Parent = game.Lighting
+	local blur = game.Lighting:FindFirstChild("CharacterCreatorBlur")
+	if not blur then
+		blur = Instance.new("BlurEffect")
+		blur.Name = "CharacterCreatorBlur"
+		blur.Parent = game.Lighting
+	end
+end
+
+--Open and close GUI
+if button and button:IsA("GuiButton") then
+	button.MouseButton1Click:Connect(function()
+		open_character_creator()
+	end)
+end
+
+openFromNpcEvent.Event:Connect(function()
+	open_character_creator()
 end)
 
 frame.ConfirmTextButton.MouseButton1Click:Connect(function()
@@ -49,7 +73,6 @@ frame.ConfirmTextButton.MouseButton1Click:Connect(function()
 	CharacterCreatorEvent:FireServer(currentItems)
 
 	frame.Visible = false
-	button.Visible = true
 
 	if game.Lighting:FindFirstChild("CharacterCreatorBlur") then
 		game.Lighting.CharacterCreatorBlur:Destroy()

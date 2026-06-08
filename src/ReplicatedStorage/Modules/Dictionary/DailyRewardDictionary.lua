@@ -23,7 +23,7 @@ export type DailyReward = {
 
 DailyRewardDictionary.TOTAL_DAYS = 7
 
-local FINAL_WEAPON_NAME = "SMG"
+local FINAL_WEAPON_NAME = "DFR"
 local finalWeaponConfig = ItemsDataDictionary.get_weapon_config(FINAL_WEAPON_NAME)
 local finalWeaponDisplayName = if finalWeaponConfig then finalWeaponConfig.displayName else FINAL_WEAPON_NAME
 

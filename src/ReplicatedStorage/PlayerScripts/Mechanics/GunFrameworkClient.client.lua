@@ -4,6 +4,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Debris = game:GetService("Debris")
+local StarterGui = game:GetService("StarterGui")
+local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -14,9 +16,13 @@ local WeaponFeedback = remotes:WaitForChild("WeaponFeedback")
 
 local modules = ReplicatedStorage:WaitForChild("Modules")
 local librariesModules = modules:WaitForChild("Libraries")
+local utilityModules = modules:WaitForChild("Utility")
 local WeaponSettings = require(librariesModules:WaitForChild("WeaponSettings"))
 local WeaponAnimations = require(librariesModules:WaitForChild("WeaponAnimation"))
 local WeaponSounds = require(librariesModules:WaitForChild("WeaponSounds"))
+local WeaponViewport = require(utilityModules:WaitForChild("WeaponViewport"))
+local dictionaryModules = modules:WaitForChild("Dictionary")
+local ItemsDataDictionary = require(dictionaryModules:WaitForChild("ItemsDataDictionary"))
 
 local assets = ReplicatedStorage:WaitForChild("Assets")
 local propsFolder = assets:FindFirstChild("Props")
@@ -45,6 +51,11 @@ local SHOULDER_POSE_R15_RIGHT = CFrame.new(0.08, -0.22, 0)
 local SHOULDER_POSE_R15_LEFT = CFrame.new(-0.08, -0.22, 0)
 local SHOULDER_POSE_R6_RIGHT = CFrame.new(0.05, -0.16, 0)
 local SHOULDER_POSE_R6_LEFT = CFrame.new(-0.05, -0.16, 0)
+local HOTBAR_SELECTED_SCALE = 1.16
+local HOTBAR_IDLE_SCALE = 1
+local HOTBAR_TWEEN_TIME = 0.14
+local HOTBAR_TWEEN_STYLE = Enum.EasingStyle.Quad
+local HOTBAR_TWEEN_DIRECTION = Enum.EasingDirection.Out
 
 local DEBUG_SHOT_SYSTEM = false
 local DEBUG_COMBAT = true
@@ -119,6 +130,25 @@ local active = {
 local crosshairGui
 local crosshairDot
 local lastDebugByKey = {}
+local hotbarSelectionTween = nil
+local playerGui = player:WaitForChild("PlayerGui")
+local matchGui = playerGui:WaitForChild("Match")
+local ammunitionFrame = matchGui:WaitForChild("Ammunition")
+local ammunitionImage = ammunitionFrame:WaitForChild("ImageLabel")
+local ammunitionAmountLabel = ammunitionImage:WaitForChild("Amount")
+local matchHudRoot = matchGui:WaitForChild("RoundLoss/Win")
+local hotbarFrame = matchHudRoot:WaitForChild("Hotbar")
+local hotbarSlot = hotbarFrame:WaitForChild("1")
+local hotbarViewport = hotbarSlot:WaitForChild("ViewportFrame")
+local hotbarTextLabel = hotbarSlot:FindFirstChild("TextLabel")
+local existingHotbarScale = hotbarSlot:FindFirstChild("SelectionScale")
+local hotbarScale = if existingHotbarScale and existingHotbarScale:IsA("UIScale")
+	then existingHotbarScale
+	else Instance.new("UIScale")
+
+hotbarScale.Name = "SelectionScale"
+hotbarScale.Parent = hotbarSlot
+hotbarScale.Scale = HOTBAR_IDLE_SCALE
 
 local function debug_log(message)
 	if not DEBUG_COMBAT then
@@ -165,6 +195,189 @@ local function describeTool(tool)
 	)
 end
 
+local function setBackpackCoreVisible(visible)
+	task.spawn(function()
+		for _ = 1, 6 do
+			local success = pcall(function()
+				StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, visible)
+			end)
+
+			if success then
+				return
+			end
+
+			task.wait(0.5)
+		end
+	end)
+end
+
+local function setTextIfLabel(target, text)
+	if target and (target:IsA("TextLabel") or target:IsA("TextButton") or target:IsA("TextBox")) then
+		target.Text = text
+	end
+end
+
+local function getTweenScaleForHotbar(selected)
+	return selected and HOTBAR_SELECTED_SCALE or HOTBAR_IDLE_SCALE
+end
+
+local function tweenHotbarSelection(selected)
+	if not hotbarScale or not hotbarScale:IsA("UIScale") then
+		return
+	end
+
+	if hotbarSelectionTween then
+		hotbarSelectionTween:Cancel()
+	end
+
+	local tween = TweenService:Create(
+		hotbarScale,
+		TweenInfo.new(HOTBAR_TWEEN_TIME, HOTBAR_TWEEN_STYLE, HOTBAR_TWEEN_DIRECTION),
+		{ Scale = getTweenScaleForHotbar(selected) }
+	)
+	hotbarSelectionTween = tween
+	tween:Play()
+end
+
+local function getHotbarWeaponTool()
+	if active.tool and active.tool.Parent then
+		return active.tool
+	end
+
+	if character then
+		for _, child in ipairs(character:GetChildren()) do
+			if child:IsA("Tool") and WeaponSettings.ResolveTool(child) then
+				return child
+			end
+		end
+	end
+
+	local backpack = player:FindFirstChild("Backpack")
+	if backpack then
+		for _, child in ipairs(backpack:GetChildren()) do
+			if child:IsA("Tool") and WeaponSettings.ResolveTool(child) then
+				return child
+			end
+		end
+	end
+
+	return nil
+end
+
+local function getHotbarWeaponName()
+	if active.tool then
+		local resolvedWeaponKey = WeaponSettings.ResolveTool(active.tool)
+		if resolvedWeaponKey then
+			local cleanedName = string.gsub(resolvedWeaponKey, "^v_", "")
+			if ItemsDataDictionary.is_valid_weapon(cleanedName) then
+				return cleanedName
+			end
+		end
+
+		if ItemsDataDictionary.is_valid_weapon(active.tool.Name) then
+			return active.tool.Name
+		end
+	end
+
+	local tool = getHotbarWeaponTool()
+	if not tool then
+		return nil
+	end
+
+	local resolvedWeaponKey = WeaponSettings.ResolveTool(tool)
+	if resolvedWeaponKey then
+		local cleanedName = string.gsub(resolvedWeaponKey, "^v_", "")
+		if ItemsDataDictionary.is_valid_weapon(cleanedName) then
+			return cleanedName
+		end
+	end
+
+	if ItemsDataDictionary.is_valid_weapon(tool.Name) then
+		return tool.Name
+	end
+
+	return tool.Name
+end
+
+local function updateAmmoHud()
+	local hasWeapon = active.tool ~= nil and active.config ~= nil
+	ammunitionFrame.Visible = hasWeapon
+
+	if not hasWeapon then
+		setTextIfLabel(ammunitionAmountLabel, "00/00")
+		return
+	end
+
+	local magSize = 0
+	if active.config then
+		magSize = math.max(0, math.floor(active.config.MagSize or 0))
+	end
+
+	setTextIfLabel(
+		ammunitionAmountLabel,
+		string.format("%02d/%02d", math.max(0, active.ammo), magSize)
+	)
+end
+
+local function updateHotbarHud()
+	local weaponName = getHotbarWeaponName()
+
+	if hotbarTextLabel then
+		setTextIfLabel(hotbarTextLabel, "1")
+	end
+
+	if not weaponName then
+		WeaponViewport.clear_viewport(hotbarViewport)
+		tweenHotbarSelection(false)
+		return
+	end
+
+	WeaponViewport.render_weapon_viewport(hotbarViewport, weaponName)
+	tweenHotbarSelection(active.tool ~= nil)
+end
+
+local function updateWeaponHud()
+	updateAmmoHud()
+	updateHotbarHud()
+end
+
+local function setActivateHandler(target, callback)
+	if target:IsA("GuiButton") then
+		target.Activated:Connect(callback)
+		return
+	end
+
+	target.Active = true
+	target.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			callback()
+		end
+	end)
+end
+
+local function equipToolFromHotbar(_allowToggleOnMobile)
+	local tool = getHotbarWeaponTool()
+
+	local currentCharacter = player.Character
+	local currentHumanoid = currentCharacter and currentCharacter:FindFirstChildOfClass("Humanoid")
+	if not currentHumanoid then
+		return
+	end
+
+	if active.tool then
+		currentHumanoid:UnequipTools()
+		return
+	end
+
+	if not tool then
+		return
+	end
+
+	if tool.Parent ~= currentCharacter then
+		currentHumanoid:EquipTool(tool)
+	end
+end
+
 local function createCrosshair()
 	if crosshairGui then
 		return
@@ -200,6 +413,11 @@ local function createCrosshair()
 end
 
 createCrosshair()
+setBackpackCoreVisible(false)
+setActivateHandler(hotbarSlot, function()
+	equipToolFromHotbar(true)
+end)
+updateWeaponHud()
 
 debug_log("Script iniciado; aguardando binding de armas.")
 
@@ -1452,6 +1670,7 @@ local function equipTool(tool)
 	playSound(tool, "EquipSound")
 	updateMovementState()
 	updatePoseTrack(true)
+	updateWeaponHud()
 
 	WeaponRequest:FireServer("Equip", tool)
 end
@@ -1497,6 +1716,7 @@ local function unequipTool(tool)
 	applyAimWalkSpeed()
 	setBodyTurnAlignEnabled(false)
 	updateMouseBehavior()
+	updateWeaponHud()
 end
 
 local function disconnectTool(tool)
@@ -1584,10 +1804,18 @@ local function bindContainer(container)
 		if child:IsA("Tool") then
 			debug_log("Nova tool detectada em " .. container:GetFullName() .. ": " .. describeTool(child))
 			bindTool(child)
+			updateHotbarHud()
+		end
+	end)
+
+	local removingConn = container.ChildRemoved:Connect(function(child)
+		if child:IsA("Tool") then
+			updateHotbarHud()
 		end
 	end)
 
 	table.insert(containerConnections, conn)
+	table.insert(containerConnections, removingConn)
 end
 
 local function onCharacterAdded(newCharacter)
@@ -1633,6 +1861,7 @@ local function onCharacterAdded(newCharacter)
 
 	player:SetAttribute(ATTR_ACTIVE, false)
 	player:SetAttribute(ATTR_AIMING, false)
+	setBackpackCoreVisible(false)
 
 	clearToolBindings()
 	clearContainerConnections()
@@ -1642,6 +1871,7 @@ local function onCharacterAdded(newCharacter)
 	bindContainer(character)
 
 	updateMouseBehavior()
+	updateWeaponHud()
 end
 
 workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
@@ -1677,6 +1907,11 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	end
 
 	if processed then
+		return
+	end
+
+	if input.KeyCode == Enum.KeyCode.One then
+		equipToolFromHotbar(false)
 		return
 	end
 
@@ -1738,6 +1973,7 @@ WeaponFeedback.OnClientEvent:Connect(function(action, p1, p2, p3)
 			active.ammo = p2 or 0
 			active.reserve = p3 or 0
 			debug_log(("Municao sincronizada para %s: ammo=%d reserve=%d"):format(describeTool(tool), active.ammo, active.reserve))
+			updateAmmoHud()
 		end
 		return
 	end
@@ -1812,6 +2048,7 @@ WeaponFeedback.OnClientEvent:Connect(function(action, p1, p2, p3)
 			clearReloadVisual()
 			updateMovementState()
 			updatePoseTrack(true)
+			updateAmmoHud()
 		end
 		return
 	end

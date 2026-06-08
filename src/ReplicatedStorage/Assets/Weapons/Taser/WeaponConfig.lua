@@ -1,6 +1,6 @@
 -- WeaponConfig.lua
 return {
-	WeaponId = "GlockEXT",
+	WeaponId = "Taser",
 	FireMode = "Semi",
 	RoundsPerMinute = 420,
 	Range = 550,

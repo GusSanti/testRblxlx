@@ -1,6 +1,6 @@
 -- WeaponConfig.lua
 return {
-	WeaponId = "GlockEXT",
+	WeaponId = "M1900",
 	FireMode = "Semi",
 	RoundsPerMinute = 420,
 	Range = 550,

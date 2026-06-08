@@ -56,6 +56,7 @@ WeaponSettings.Aliases = {
 	["ARP"] = "v_ARP",
 	["CDracoModel"] = "v_CDracoModel",
 	["DRACO"] = "v_CDracoModel",
+	["Draco"] = "v_CDracoModel",
 	["Cougar"] = "v_Cougar",
 	["DE"] = "v_DE",
 	["DFR"] = "v_DFR",

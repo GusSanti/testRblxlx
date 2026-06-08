@@ -98,6 +98,7 @@ local matchKillPresentation: KillPresentationPayload? = nil
 
 local modeButtons: { [string]: TextButton } = {}
 local buttonDefaults: { [TextButton]: ButtonDefault } = {}
+local playerCardCacheByContainer: { [GuiObject]: { [number]: GuiObject } } = {}
 
 local removeStateListener: (() -> ())? = nil
 local removeDebugListener: (() -> ())? = nil
@@ -367,18 +368,52 @@ local function sanitize_kill_presentation(rawPayload: any): KillPresentationPayl
 	}
 end
 
-local function clear_player_cards(container: GuiObject, template: GuiObject): ()
-	for _, child in container:GetChildren() do
-		if child ~= template and child:IsA("GuiObject") then
-			child:Destroy()
+local function get_player_card_cache(container: GuiObject): { [number]: GuiObject }
+	local cachedCards = playerCardCacheByContainer[container]
+
+	if cachedCards then
+		return cachedCards
+	end
+
+	cachedCards = {}
+	playerCardCacheByContainer[container] = cachedCards
+	return cachedCards
+end
+
+local function hide_unused_player_cards(container: GuiObject, template: GuiObject, activeUserIds: { [number]: boolean }): ()
+	local cachedCards = get_player_card_cache(container)
+
+	for userId, card in cachedCards do
+		if not activeUserIds[userId] then
+			card.Visible = false
 		end
 	end
 
 	template.Visible = false
 end
 
+local function get_or_create_player_card(container: GuiObject, template: GuiObject, userId: number): GuiObject
+	local cachedCards = get_player_card_cache(container)
+	local existingCard = cachedCards[userId]
+
+	if existingCard and existingCard.Parent == container then
+		return existingCard
+	end
+
+	local clone = template:Clone()
+	clone.Parent = container
+	cachedCards[userId] = clone
+	return clone
+end
+
 local function populate_player_card(card: GuiObject, playerEntry: HudPlayerEntry, layoutOrder: number): ()
-	card.Name = string.format("%s_%d", card.Name, playerEntry.userId)
+	local baseName = card:GetAttribute("BaseName")
+	if typeof(baseName) ~= "string" or baseName == "" then
+		baseName = card.Name
+		card:SetAttribute("BaseName", baseName)
+	end
+
+	card.Name = string.format("%s_%d", baseName, playerEntry.userId)
 	card.LayoutOrder = layoutOrder
 	card.Visible = true
 	card:SetAttribute("IsAlive", playerEntry.isAlive)
@@ -388,18 +423,30 @@ local function populate_player_card(card: GuiObject, playerEntry: HudPlayerEntry
 	local viewport = find_viewport(card:FindFirstChild("char"))
 
 	if viewport then
-		viewport.Visible = render_player_viewport(viewport, playerEntry.userId)
+		local lastRenderedUserId = card:GetAttribute("ViewportUserId")
+		local viewportReady = card:GetAttribute("ViewportReady") == true
+
+		if lastRenderedUserId ~= playerEntry.userId or not viewportReady then
+			local rendered = render_player_viewport(viewport, playerEntry.userId)
+			viewport.Visible = rendered
+			card:SetAttribute("ViewportUserId", playerEntry.userId)
+			card:SetAttribute("ViewportReady", rendered)
+		else
+			viewport.Visible = true
+		end
 	end
 end
 
 local function render_player_cards(container: GuiObject, template: GuiObject, playerEntries: { HudPlayerEntry }): ()
-	clear_player_cards(container, template)
+	local activeUserIds: { [number]: boolean } = {}
 
 	for index, playerEntry in playerEntries do
-		local clone = template:Clone()
-		clone.Parent = container
-		populate_player_card(clone, playerEntry, index)
+		activeUserIds[playerEntry.userId] = true
+		local card = get_or_create_player_card(container, template, playerEntry.userId)
+		populate_player_card(card, playerEntry, index)
 	end
+
+	hide_unused_player_cards(container, template, activeUserIds)
 end
 
 local function get_active_team_name(): string?
@@ -520,6 +567,8 @@ local function refresh_match_players(): ()
 end
 
 local function refresh_match_ui(): ()
+	matchRoot.Visible = isMatchHud and matchPhase ~= "LoadingPlayers" and matchPhase ~= "MapVote" and matchPhase ~= "Lobby"
+
 	if not isMatchHud then
 		clear_match_players()
 		set_visible(matchResultFrame, false)
@@ -551,7 +600,7 @@ end
 
 local function set_hud_mode(matchMode: boolean): ()
 	isMatchHud = matchMode
-	matchRoot.Visible = matchMode
+	matchRoot.Visible = matchMode and matchPhase ~= "LoadingPlayers" and matchPhase ~= "MapVote" and matchPhase ~= "Lobby"
 
 	if matchMode then
 		set_lobby_timer_visible(false)
