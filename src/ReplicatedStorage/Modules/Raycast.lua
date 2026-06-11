@@ -1,15 +1,11 @@
-return function(origin, direction, _, filterInstances, blockcastSize)
-	local raycastParams = RaycastParams.new()
-	raycastParams.FilterDescendantsInstances = filterInstances or {workspace.Map}
-	raycastParams.FilterType = Enum.RaycastFilterType.Include
+local Raycast = {}
 
-	local result = nil
-
-	if not blockcastSize then
-		result = workspace:Raycast(origin, direction, raycastParams)
-	else
-		result = workspace:Blockcast(CFrame.new(origin), blockcastSize, direction, raycastParams)
-	end
-
-	return result
+function Raycast.UpVector(Target: Part, Blacklist: {any: any}) : RaycastResult
+	local params = RaycastParams.new()
+	params.FilterDescendantsInstances = Blacklist
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	
+	return workspace:Raycast(Target.Position, Target.CFrame.UpVector * - 500, params)
 end
+
+return Raycast
