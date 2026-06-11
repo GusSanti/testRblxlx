@@ -12,6 +12,7 @@ local MiscModule = require(ReplicatedStorage.VFXModules.Misc)
 local upgradesModule = require(ReplicatedStorage.Upgrades)
 local VFX_Helper = require(ReplicatedStorage.Modules.VFX_Helper)
 local EmitModule = require(ReplicatedStorage.Modules:WaitForChild("EmitModule"))
+local GameplayVFXSuppression = require(ReplicatedStorage.Modules:WaitForChild("GameplayVFXSuppression"))
 local TS = game:GetService("TweenService")
 local GameSpeed = workspace.Info.GameSpeed
 local player = game.Players.LocalPlayer
@@ -69,6 +70,11 @@ end
 
 local function spawnDeathVfx(mob: Model, deathCFrame: CFrame?)
 	if trackedMobs[mob] == "dead" then
+		return
+	end
+
+	if GameplayVFXSuppression.IsSuppressed() then
+		trackedMobs[mob] = "dead"
 		return
 	end
 
@@ -174,6 +180,10 @@ workspace.ChildAdded:Connect(function(child)
 end)
 
 ReplicatedStorage.Events.VFX_Remote.OnClientEvent:Connect(function(Name,...)
+	if GameplayVFXSuppression.IsSuppressed() then
+		return
+	end
+
 	if Name == "DamageIndicator"  then
 		if not playerSettings.DamageIndicator.Value then return end
 		MiscModule.DamageIndicator(...)

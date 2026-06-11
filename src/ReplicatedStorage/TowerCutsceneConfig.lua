@@ -6,6 +6,7 @@ local TowerCutsceneConfig = {
 			SourcePath = "Cutscenes/DartWader",
 			GuiName = "DartWaderMaxCutsceneGui",
 			FallbackDuration = 6,
+			SuppressGameplayVFX = true,
 			CameraHeightOffset = -1.5,
 			CameraContainerName = "Camera",
 			CameraPartName = "camera",

@@ -72,6 +72,7 @@ local shootEvent: RemoteEvent = events:WaitForChild("PossessShoot")
 local playVFXEvent: RemoteEvent = events:WaitForChild("PlayPossessVFX")
 
 local vfxLoader = require(ReplicatedStorage:WaitForChild("VFX_Loader"))
+local GameplayVFXSuppression = require(ReplicatedStorage.Modules:WaitForChild("GameplayVFXSuppression"))
 local upgradesModule = require(ReplicatedStorage:WaitForChild("Upgrades"))
 local PlayerModule = require(player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule"))
 local controls = PlayerModule:GetControls()
@@ -1119,6 +1120,10 @@ local function on_ability_two_action(_: string, state: Enum.UserInputState): Enu
 end
 
 local function on_play_vfx(towerModel: Model, moduleName: string, attackName: string, hitPosition: Vector3): ()
+	if GameplayVFXSuppression.IsSuppressed() then
+		return
+	end
+
 	local humanoidRootPart = towerModel:FindFirstChild("HumanoidRootPart")
 
 	if currentlyPossessing == towerModel and viewmodelModel then

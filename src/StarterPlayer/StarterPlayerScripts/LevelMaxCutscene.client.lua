@@ -15,6 +15,7 @@ local DEBUG_LOOP_DELAY: number = 0.25
 ------------------//VARIABLES
 local modulesFolder: Folder = ReplicatedStorage:WaitForChild("Modules") :: Folder
 local VFXHelper = require(modulesFolder:WaitForChild("VFX_Helper"))
+local GameplayVFXSuppression = require(modulesFolder:WaitForChild("GameplayVFXSuppression"))
 local TowerCutsceneConfig = require(ReplicatedStorage:WaitForChild("TowerCutsceneConfig"))
 
 type BlinkSwapSettings = {
@@ -31,6 +32,7 @@ type TowerSettings = {
 	SourcePath: string,
 	GuiName: string?,
 	FallbackDuration: number?,
+	SuppressGameplayVFX: boolean?,
 	CameraHeightOffset: number?,
 	CameraContainerName: string?,
 	CameraPartName: string?,
@@ -434,6 +436,8 @@ local function run_cutscene(towerName: string): ()
 	local cameraHeightOffset = settings.CameraHeightOffset or -1.5
 	local fallbackDuration = settings.FallbackDuration or 6
 	local guiName = settings.GuiName or ("TowerCutscene_" .. towerName:gsub("%W", ""))
+	local suppressGameplayVFX = settings.SuppressGameplayVFX == true
+	local suppressionSource = ("TowerCutscene:%s"):format(towerName)
 
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = guiName
@@ -468,6 +472,10 @@ local function run_cutscene(towerName: string): ()
 	end)
 
 	tween_black(blackFrame, 0)
+
+	if suppressGameplayVFX then
+		GameplayVFXSuppression.SetSuppressed(suppressionSource, true)
+	end
 
 	local hiddenTowers: {Instance} = {}
 	local hiddenMobs: {Instance} = {}
@@ -592,6 +600,10 @@ local function run_cutscene(towerName: string): ()
 	pcall(function()
 		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
 	end)
+
+	if suppressGameplayVFX then
+		GameplayVFXSuppression.SetSuppressed(suppressionSource, false)
+	end
 
 	tween_black(blackFrame, 1)
 	screenGui:Destroy()
