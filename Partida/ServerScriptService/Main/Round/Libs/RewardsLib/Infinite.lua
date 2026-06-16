@@ -5,6 +5,7 @@ local GetPlayerBoost = require(ReplicatedStorage.Modules.GetPlayerBoost)
 local StoryModeStats = require(ReplicatedStorage.StoryModeStats)
 local GetVipsBoost = require(ReplicatedStorage.Modules.GetVipsBoost)
 local RewardProcessing = require(script.Parent.RewardProcessing)
+local FriendBonus = require(script.Parent.FriendBonus)
 
 local ReceiveRewardsEvent = ReplicatedStorage.Events.Client.ReceiveRewards
 local info = workspace.Info
@@ -27,6 +28,7 @@ return function(player)
 	rewards["Items"] = {}
 	rewards["Items"][Variables.ActStats.ItemReward] = math.floor(Variables.CurrentRound/10)
 	rewards["OwnedTowers"] = Variables.infinityTowerReward
+	FriendBonus.Apply(player, rewards)
 	player.Items[Variables.ActStats.ItemReward].Value += rewards["Items"][Variables.ActStats.ItemReward]
 	player.Gems.Value += rewards["Gems"]
 

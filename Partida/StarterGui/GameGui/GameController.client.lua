@@ -3299,7 +3299,22 @@ ReplicatedStorage.Events.Client.ReceiveRewards.OnClientEvent:Connect(function(re
 	local isHidden = true
 	local rewardsDisplaySuccess, rewardsDisplayError = pcall(function()
 		for reward, amount in rewards do
-			if reward == "Items" then
+			if reward == "FriendBonus" then
+				if type(amount) == "table" and _G.Message then
+					local gemsBonus = amount.Gems or 0
+					local xpBonus = amount.PlayerXP or 0
+					local messageParts = {}
+					if gemsBonus > 0 then
+						table.insert(messageParts, "+" .. tostring(gemsBonus) .. " Gems")
+					end
+					if xpBonus > 0 then
+						table.insert(messageParts, "+" .. tostring(xpBonus) .. " XP")
+					end
+					if #messageParts > 0 then
+						_G.Message("Friend Bonus: " .. table.concat(messageParts, " / "), Color3.fromRGB(85, 255, 127))
+					end
+				end
+			elseif reward == "Items" then
 				for item, quantity in amount do
 					if quantity <= 0 then continue end
 					for _ = 1, quantity do

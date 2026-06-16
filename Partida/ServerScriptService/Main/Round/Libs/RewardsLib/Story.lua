@@ -15,6 +15,7 @@ local Variables = require(ServerScriptService.Main.Round.Variables)
 local CurrentRaidEventMap = ReplicatedStorage.CurrentRaidEventMap.Value
 local ReceiveRewardsEvent = ReplicatedStorage.Events.Client.ReceiveRewards
 local RewardProcessing = require(script.Parent.RewardProcessing)
+local FriendBonus = require(script.Parent.FriendBonus)
 
 local givenGems = nil
 
@@ -108,11 +109,13 @@ return function(player)
 
 	warn(rewards)
 
-	player.Gems.Value += rewards["Gems"] 
-
 	local xpGanhado = 50 
 	rewards["PlayerXP"] = xpGanhado 
-	player.PlayerExp.Value += xpGanhado
+
+	FriendBonus.Apply(player, rewards)
+
+	player.Gems.Value += rewards["Gems"] 
+	player.PlayerExp.Value += rewards["PlayerXP"]
 	-- ===================================
 
 	--Variables.CurrentRound

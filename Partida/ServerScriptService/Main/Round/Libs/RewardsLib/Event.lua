@@ -12,6 +12,7 @@ local ViewModule = require(ReplicatedStorage.Modules.ViewModule)
 local Upgarades = require(ReplicatedStorage.Upgrades)
 local Rewards = Variables.ActStats.Rewards
 local ReceiveRewardsEvent = ReplicatedStorage.Events.Client.ReceiveRewards
+local FriendBonus = require(script.Parent.FriendBonus)
 local info = workspace.Info
 
 local function attemptPcall(fnc)
@@ -62,6 +63,8 @@ return function(player: Player)
 	warn(damage)
 	warn(Rewards["Gems"])
 	warn(PlayerCurrency)
+
+	FriendBonus.Apply(player, Rewards)
 
 	player.Gems.Value += Rewards["Gems"] or 0
 	if PlayerCurrencyValue then
