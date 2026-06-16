@@ -21,20 +21,41 @@ local module = {}
 module["Ki Mundi Attack"] = function(HRP, target)
 	local speed = GameSpeed.Value
 	local KiMundiFolder = VFX.LEGA["Ki Mundi"].First
-	local Range = HRP.Parent.Config:WaitForChild("Range").Value
-	local targetHRP = target:FindFirstChild("HumanoidRootPart")
+	local characterModel = HRP and HRP.Parent
+	if not characterModel then return end
+
+	local Range = characterModel.Config:WaitForChild("Range").Value
+	local targetHRP = target and target:FindFirstChild("HumanoidRootPart")
+	local originalPivot = characterModel:GetPivot()
+	local returnDelay = 0.1 / speed
+	local attackCommitted = false
+
+	local function emitTeleportEffect(atCFrame)
+		local teleportEffect = KiMundiFolder:FindFirstChild("teleport")
+		if not teleportEffect then return end
+
+		local clone = teleportEffect:Clone()
+		clone.Transparency = 1
+		clone.Anchored = true
+		clone.CanCollide = false
+		clone.CFrame = atCFrame + Vector3.new(0, -0.5, 0)
+		clone.Parent = vfxFolder
+		Debris:AddItem(clone, 1 / speed)
+		VFX_Helper.EmitAllParticles(clone)
+	end
 
 	task.wait(0.1 / speed)
 	if not HRP or not HRP.Parent then return end
 
-	local handleR = HRP.Parent:FindFirstChild("Right Arm") and HRP.Parent["Right Arm"]:FindFirstChild("Handle")
+	local handleR = characterModel:FindFirstChild("Right Arm") and characterModel["Right Arm"]:FindFirstChild("Handle")
 	if handleR and handleR:FindFirstChild("Trail") then
 		handleR.Trail.Enabled = true
 	end
 
 	task.wait(0.75 / speed)
 	if not HRP or not HRP.Parent or not targetHRP then return end
-	HRP.Parent.Attacking.Value = true
+	characterModel.Attacking.Value = true
+	attackCommitted = true
 	local vfxTemplate = KiMundiFolder.First:Clone()
 
 	local function bindAttachment(attName, targetPart, isPierce)
@@ -101,13 +122,54 @@ module["Ki Mundi Attack"] = function(HRP, target)
 
 	vfxTemplate:Destroy()
 
-	local connection = HRP.Parent.Destroying:Once(function()
+	local function cleanupVFX()
 		if popAtt then popAtt:Destroy() end
 		if pierceAtt then pierceAtt:Destroy() end
 		if impactAtt then impactAtt:Destroy() end
 		if slashAtt then slashAtt:Destroy() end
 		if meshModel then meshModel:Destroy() end
 		if beamModel then beamModel:Destroy() end
+	end
+
+	local attackFinished = false
+	local function finishAttack()
+		if attackFinished then return end
+		attackFinished = true
+
+		cleanupVFX()
+
+		if handleR and handleR:FindFirstChild("Trail") then
+			handleR.Trail.Enabled = false
+		end
+
+		local attackingFlag = characterModel:FindFirstChild("Attacking")
+		if not HRP or not HRP.Parent then
+			if attackingFlag then
+				attackingFlag.Value = false
+			end
+			return
+		end
+
+		emitTeleportEffect(HRP.CFrame)
+		task.wait(returnDelay)
+
+		if not HRP or not HRP.Parent then
+			if attackingFlag then
+				attackingFlag.Value = false
+			end
+			return
+		end
+
+		characterModel:PivotTo(originalPivot)
+		emitTeleportEffect(HRP.CFrame)
+		if attackingFlag then
+			attackingFlag.Value = false
+		end
+	end
+
+	local connection = characterModel.Destroying:Once(function()
+		attackFinished = true
+		cleanupVFX()
 	end)
 
 	local targetCFrame = HRP.CFrame * CFrame.new(0, 0, -(Range - 2))
@@ -119,51 +181,37 @@ module["Ki Mundi Attack"] = function(HRP, target)
 	if beamModel then VFX_Helper.OnAllBeams(beamModel) end 
 
 	task.wait(0.09 / speed)
-	if not HRP or not HRP.Parent or not targetHRP then return end
+	if not HRP or not HRP.Parent or not targetHRP then
+		if attackCommitted then
+			finishAttack()
+		end
+		return
+	end
 
 	if impactAtt then VFX_Helper.EmitAllParticles(impactAtt) end
 	if slashAtt then VFX_Helper.EmitAllParticles(slashAtt) end
 
-		UnitSoundEffectLib.playSound(HRP.Parent, 'SaberSwing' .. tostring(math.random(1, 2)), false)
+	UnitSoundEffectLib.playSound(characterModel, 'SaberSwing' .. tostring(math.random(1, 2)), false)
 
 	task.wait(0.05 / speed)
-	if not HRP or not HRP.Parent then return end
+	if not HRP or not HRP.Parent then
+		if attackCommitted then
+			finishAttack()
+		end
+		return
+	end
 
 	if beamModel then VFX_Helper.OffAllBeams(beamModel) end
 
 	task.wait(1 / speed)
-	if not HRP or not HRP.Parent then return end
-
-	local teleportEffect1 = KiMundiFolder:FindFirstChild("teleport")
-	if teleportEffect1 then
-		local teleposr = teleportEffect1:Clone()
-		teleposr.Transparency = 1
-		teleposr.Anchored = true 
-		teleposr.CanCollide = false
-		teleposr.CFrame = HRP.CFrame + Vector3.new(0, -0.5, 0)
-		teleposr.Parent = vfxFolder	
-		Debris:AddItem(teleposr, 1 / speed)
-		VFX_Helper.EmitAllParticles(teleposr)
+	if not HRP or not HRP.Parent then
+		if attackCommitted then
+			finishAttack()
+		end
+		return
 	end
 
-	HRP.CFrame = HRP.Parent:WaitForChild("TowerBasePart").CFrame
-
-	local teleportEffect2 = KiMundiFolder:FindFirstChild("teleport")
-	if teleportEffect2 then
-		local teleposttt = teleportEffect2:Clone()
-		teleposttt.Transparency = 1
-		teleposttt.Anchored = true
-		teleposttt.CanCollide = false
-		teleposttt.CFrame = HRP.CFrame + Vector3.new(0, -0.5, 0)
-		teleposttt.Parent = vfxFolder	
-		Debris:AddItem(teleposttt, 1 / speed)
-		VFX_Helper.EmitAllParticles(teleposttt)
-	end
-
-	if handleR and handleR:FindFirstChild("Trail") then
-		handleR.Trail.Enabled = false
-	end
-	HRP.Parent.Attacking.Value = false
+	finishAttack()
 	connection:Disconnect()
 end
 
