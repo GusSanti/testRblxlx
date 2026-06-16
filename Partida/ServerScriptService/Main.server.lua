@@ -75,7 +75,7 @@ local function handlePlayerJoin(player)
 	if not teleportData.OwnerId then
 		teleportData.OwnerId = player.UserId
 	end
-	
+
 	if RunService:IsStudio() then teleportData = nil end
 
 	warn('teleport data:')
@@ -94,7 +94,7 @@ local function handlePlayerJoin(player)
 		workspace.Info.Raid.Value = teleportData.Raid or false
 		workspace.Info.Infinity.Value = teleportData.Level == 0 or teleportData.Infinity
 		workspace.Info.Event.Value = teleportData.Event
-		
+
 		if StoryModeStats.Maps[teleportData.World] then
 			info.WorldString.Value = StoryModeStats.Maps[teleportData.World]
 		end

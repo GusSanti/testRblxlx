@@ -124,7 +124,7 @@ module["Ki Mundi Attack"] = function(HRP, target)
 	if impactAtt then VFX_Helper.EmitAllParticles(impactAtt) end
 	if slashAtt then VFX_Helper.EmitAllParticles(slashAtt) end
 
-		UnitSoundEffectLib.playSound(HRP.Parent, 'SaberSwing' .. tostring(math.random(1, 2)), false)
+	UnitSoundEffectLib.playSound(HRP.Parent, 'SaberSwing' .. tostring(math.random(1, 2)), false)
 
 	task.wait(0.05 / speed)
 	if not HRP or not HRP.Parent then return end

@@ -51,7 +51,7 @@ local function placementDebug(player, ...)
 	end
 
 	local playerName = if typeof(player) == "Instance" and player:IsA("Player") then player.Name else "nil"
-	print("[PlacementDebug][Server][" .. playerName .. "]", ...)
+	--print("[PlacementDebug][Server][" .. playerName .. "]", ...)
 end
 
 local function formatVector3(value)

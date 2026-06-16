@@ -209,17 +209,9 @@ ReplicatedStorage.Events.VFX_Remote.OnClientEvent:Connect(function(Name,...)
 end)
 
 
-local bestTarget = nil
-local bestWaypoint = nil
-local bestDistance = nil
-local bestHealth = nil
-local mode = nil
-local map = nil
-local range = nil
-
 local info = workspace:WaitForChild('Info')
 
-local function handleFindTarget(newTower, mob: Model)
+local function handleFindTarget(newTower, mob: Model, state)
 	local HRP = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart or nil
 	if HRP then
 		local newMobPositionForTower = Vector3.new(HRP.Position.X,newTower.HumanoidRootPart.Position.Y,HRP.Position.Z)
@@ -228,42 +220,42 @@ local function handleFindTarget(newTower, mob: Model)
 		local distanceToWaypoint = nil
 
 		if not info.Versus.Value then
-			if map:FindFirstChild("Waypoints",true) then
-				local newMobPositionForPoint = Vector3.new(HRP.Position.X,map.Waypoints[mob:WaitForChild("MovingTo").Value].Position.Y,HRP.Position.Z)
-				distanceToWaypoint = (newMobPositionForPoint - map.Waypoints[mob:WaitForChild("MovingTo").Value].Position).Magnitude
+			if state.Map:FindFirstChild("Waypoints",true) then
+				local newMobPositionForPoint = Vector3.new(HRP.Position.X,state.Map.Waypoints[mob:WaitForChild("MovingTo").Value].Position.Y,HRP.Position.Z)
+				distanceToWaypoint = (newMobPositionForPoint - state.Map.Waypoints[mob:WaitForChild("MovingTo").Value].Position).Magnitude
 			else
-				local newMobPositionForPoint = Vector3.new(HRP.Position.X,map["Waypoints"..mob.PathNumber.Value][mob:WaitForChild("MovingTo").Value].Position,HRP.Position.Z)
-				distanceToWaypoint = (newMobPositionForPoint - map["Waypoints"..mob.PathNumber.Value][mob:WaitForChild("MovingTo").Value].Position).Magnitude
+				local newMobPositionForPoint = Vector3.new(HRP.Position.X,state.Map["Waypoints"..mob.PathNumber.Value][mob:WaitForChild("MovingTo").Value].Position.Y,HRP.Position.Z)
+				distanceToWaypoint = (newMobPositionForPoint - state.Map["Waypoints"..mob.PathNumber.Value][mob:WaitForChild("MovingTo").Value].Position).Magnitude
 			end
 		else
 			local mobTeam = mob:GetAttribute('Team')
 
-			local newMobPositionForPoint = Vector3.new(HRP.Position.X,map[mobTeam .. 'Waypoints'][mob:WaitForChild("MovingTo").Value].Position.Y,HRP.Position.Z)
-			distanceToWaypoint = (newMobPositionForPoint - map[mobTeam .. 'Waypoints'][mob:WaitForChild("MovingTo").Value].Position).Magnitude
+			local newMobPositionForPoint = Vector3.new(HRP.Position.X,state.Map[mobTeam .. 'Waypoints'][mob:WaitForChild("MovingTo").Value].Position.Y,HRP.Position.Z)
+			distanceToWaypoint = (newMobPositionForPoint - state.Map[mobTeam .. 'Waypoints'][mob:WaitForChild("MovingTo").Value].Position).Magnitude
 
 		end
 
-		if distanceToMob <= range then
-			if mode == "Near" then
-				range = distanceToMob
-				bestTarget = mob
-			elseif mode == "First" then
-				if not bestWaypoint or mob:WaitForChild("MovingTo").Value >= bestWaypoint then
+		if distanceToMob <= state.Range then
+			if state.Mode == "Near" then
+				state.Range = distanceToMob
+				state.BestTarget = mob
+			elseif state.Mode == "First" then
+				if not state.BestWaypoint or mob:WaitForChild("MovingTo").Value >= state.BestWaypoint then
 
 					--	print(`New Mob: {mob} | MovingTo:{mob.MovingTo.Value} | newDistance: {distanceToWaypoint}`)
-					--	print(`OLD MOB: {bestTarget} | BestWaypoint:{bestWaypoint} | oldDistance: {bestDistance}`)
+					--	print(`OLD MOB: {state.BestTarget} | BestWaypoint:{state.BestWaypoint} | oldDistance: {state.BestDistance}`)
 
-					if bestWaypoint and mob:WaitForChild("MovingTo").Value > bestWaypoint then
-						bestWaypoint = mob:WaitForChild("MovingTo").Value
-						bestDistance = distanceToWaypoint
-						bestTarget = mob
-					elseif not bestDistance or distanceToWaypoint < bestDistance then
-						bestWaypoint = bestWaypoint or mob:WaitForChild("MovingTo").Value
-						bestDistance = distanceToWaypoint
-						bestTarget = mob
+					if state.BestWaypoint and mob:WaitForChild("MovingTo").Value > state.BestWaypoint then
+						state.BestWaypoint = mob:WaitForChild("MovingTo").Value
+						state.BestDistance = distanceToWaypoint
+						state.BestTarget = mob
+					elseif not state.BestDistance or distanceToWaypoint < state.BestDistance then
+						state.BestWaypoint = state.BestWaypoint or mob:WaitForChild("MovingTo").Value
+						state.BestDistance = distanceToWaypoint
+						state.BestTarget = mob
 					end
 				end
-			elseif mode == "Last" then
+			elseif state.Mode == "Last" then
 				--if not bestWaypoint or mob.MovingTo.Value <= bestWaypoint then
 				--	bestWaypoint = mob.MovingTo.Value
 
@@ -273,57 +265,84 @@ local function handleFindTarget(newTower, mob: Model)
 				--	end
 				--end
 
-				if not bestWaypoint or mob:WaitForChild("MovingTo").Value <= bestWaypoint then
+				if not state.BestWaypoint or mob:WaitForChild("MovingTo").Value <= state.BestWaypoint then
 
-					if bestWaypoint and mob:WaitForChild("MovingTo").Value < bestWaypoint then
-						bestWaypoint = mob:WaitForChild("MovingTo").Value
-						bestDistance = distanceToWaypoint
-						bestTarget = mob
-					elseif not bestDistance or distanceToWaypoint > bestDistance then
-						bestWaypoint = bestWaypoint or mob:WaitForChild("MovingTo").Value
-						bestDistance = distanceToWaypoint
-						bestTarget = mob
+					if state.BestWaypoint and mob:WaitForChild("MovingTo").Value < state.BestWaypoint then
+						state.BestWaypoint = mob:WaitForChild("MovingTo").Value
+						state.BestDistance = distanceToWaypoint
+						state.BestTarget = mob
+					elseif not state.BestDistance or distanceToWaypoint > state.BestDistance then
+						state.BestWaypoint = state.BestWaypoint or mob:WaitForChild("MovingTo").Value
+						state.BestDistance = distanceToWaypoint
+						state.BestTarget = mob
 					end
 				end
 
-			elseif mode == "Strong" then
-				if not bestHealth or mob.Humanoid.Health > bestHealth then
-					bestHealth = mob.Humanoid.Health
-					bestTarget = mob
+			elseif state.Mode == "Strong" then
+				if not state.BestHealth or mob.Humanoid.Health > state.BestHealth then
+					state.BestHealth = mob.Humanoid.Health
+					state.BestTarget = mob
 				end
-			elseif mode == "Weak" then
-				if not bestHealth or mob.Humanoid.Health < bestHealth then
-					bestHealth = mob.Humanoid.Health
-					bestTarget = mob
+			elseif state.Mode == "Weak" then
+				if not state.BestHealth or mob.Humanoid.Health < state.BestHealth then
+					state.BestHealth = mob.Humanoid.Health
+					state.BestTarget = mob
 				end
 			end
 		end
 	end
 end
 
-local info = workspace:WaitForChild('Info')
-
 function FindTarget(newTower:Model)
+	if newTower:GetAttribute("Possessed") == true then
+		return nil
+	end
+
+	local map = nil
 	if not info.Versus.Value then
 		map = workspace.Map:FindFirstChildOfClass("Folder")
 	else
 		map = workspace -- as it should be >:(
 	end
 
-	mode = newTower.Config.TargetMode.Value
-	range = TowerInfo.GetRange(newTower)
+	local state = {
+		BestTarget = nil,
+		BestWaypoint = nil,
+		BestDistance = nil,
+		BestHealth = nil,
+		Mode = newTower.Config.TargetMode.Value,
+		Map = map,
+		Range = TowerInfo.GetRange(newTower),
+		TowerType = newTower.Config.Type.Value,
+	}
 
 	if not info.Versus.Value then
 		for i, mob in workspace.Mobs:GetChildren() do
-			handleFindTarget(newTower, mob)
+			if not mob:FindFirstChild("Type") then
+				continue
+			end
+
+			if state.TowerType ~= "Hybrid" and mob.Type.Value ~= state.TowerType then
+				continue
+			end
+
+			handleFindTarget(newTower, mob, state)
 		end
 	else
 		for i, mob in workspace[newTower:GetAttribute('Team') .. 'Mobs']:GetChildren() do
-			handleFindTarget(newTower, mob)
+			if not mob:FindFirstChild("Type") then
+				continue
+			end
+
+			if state.TowerType ~= "Hybrid" and mob.Type.Value ~= state.TowerType then
+				continue
+			end
+
+			handleFindTarget(newTower, mob, state)
 		end
 	end
 
-	return bestTarget
+	return state.BestTarget
 end
 
 while task.wait() do
