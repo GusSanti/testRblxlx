@@ -1,4 +1,5 @@
 --// Services
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
@@ -8,126 +9,134 @@ local Info = workspace:WaitForChild("Info")
 local tutorialSteps = require(script.TutotrialSteps)
 local events = require(script.Events)
 
-local eventsFolder = ReplicatedStorage:WaitForChild("Events")
-
---// Frames
-local dialogueFrame = script.Parent.Dialogue
---local pointer = script.Parent.Pointers.Pointer
-
-
-local contents = dialogueFrame.Contents
-
-local bgText = contents.Bg_Text
-local viewport = bgText.ViewportFrame
-local label = bgText.TextLabel
+--// UI
+local player = Players.LocalPlayer
+local dialogueFrame = script.Parent:WaitForChild("Dialogue")
+local dialogueScale = dialogueFrame:FindFirstChildOfClass("UIScale")
+local contents = dialogueFrame:WaitForChild("Contents")
+local bgText = contents:WaitForChild("Bg_Text")
+local label = bgText:WaitForChild("TextLabel")
 
 local textThread = nil
+local gameOverConnection = nil
 
 local lostText = "Oh no! You ended up losing, no worries, you can try again."
 
---[[local POINTER_POSITIOTNS = {
-	[1] = UDim2.new(0.475,0,0.222,0),
-	[2] = UDim2.new(0.334,0,0.948,0)
-}]]
-
---// Helper Functions
 local function animateText(text: string)
-	local characters = string.split(text, "")
-	local waitTime = 0.01
-
+	local characters = string.split(text or "", "")
 	label.Text = ""
 
 	for index = 1, #characters do
-		local character = characters[index]
-
-		label.Text ..= character
-
-		task.wait(waitTime)
+		label.Text ..= characters[index]
+		task.wait(0.01)
 	end
 end
 
-local function tween(instance: Instance, tweenInfo: TweenInfo, props: { [string]: any })
-	local tween = TweenService:Create(instance, tweenInfo, props)
-
-	tween:Play()
-
-	return tween
+local function tween(instance: Instance, tweenInfo: TweenInfo, props: {[string]: any})
+	local tweenObject = TweenService:Create(instance, tweenInfo, props)
+	tweenObject:Play()
+	return tweenObject
 end
 
+local function stopTextThread()
+	if textThread then
+		pcall(task.cancel, textThread)
+		textThread = nil
+	end
+end
+
+local function showStepText(text: string)
+	stopTextThread()
+	textThread = task.spawn(function()
+		animateText(text)
+	end)
+end
+
+local function shouldSkipTutorial()
+	return Info.Raid.Value == true
+		or Info.Infinity.Value == true
+		or Info.Event.Value == true
+		or Info.ChallengeNumber.Value ~= -1
+end
 
 local function RunTutorial()
-	if workspace.Info.Raid.Value == true or workspace.Info.Infinity.Value == true or Info.Event.Value == true or Info.ChallengeNumber.Value ~= -1 then return end
+	if shouldSkipTutorial() then
+		return
+	end
+
 	dialogueFrame.Visible = true
 
-	local tweenInfo = TweenInfo.new(.35, Enum.EasingStyle.Exponential)
-	local goal = {
-		Scale = 1
-	}
-
-	tween(dialogueFrame.UIScale, tweenInfo, goal):Play()
+	local tweenInfo = TweenInfo.new(0.35, Enum.EasingStyle.Exponential)
+	if dialogueScale then
+		tween(dialogueScale, tweenInfo, {Scale = 1})
+	end
 
 	local lost = false
-	
-	Info.GameOver.Changed:Connect(function()
-		if not Info.Victory.Value then
-			if textThread  then
-				task.cancel(textThread)
-				textThread = nil
-			end
-			
-			textThread = task.spawn(function()
-				animateText(lostText)
-			end)
-			
-			task.delay(2, function()
-				tween(dialogueFrame.UIScale, tweenInfo, {Scale = 0}):Play()
-			end)
-			
+
+	if gameOverConnection then
+		gameOverConnection:Disconnect()
+	end
+
+	gameOverConnection = Info.GameOver:GetPropertyChangedSignal("Value"):Connect(function()
+		if Info.GameOver.Value and not Info.Victory.Value then
 			lost = true
+			showStepText(lostText)
+
+			task.delay(2, function()
+				if dialogueScale then
+					tween(dialogueScale, tweenInfo, {Scale = 0})
+				end
+			end)
 		end
 	end)
 
-	for stepNum, step in ipairs(tutorialSteps) do	
-		if workspace.Info.Victory.Value == true or lost then break end
+	for stepNum, step in ipairs(tutorialSteps) do
+		if Info.Victory.Value or lost then
+			break
+		end
 
 		if step.callback then
-			step.callback()
+			pcall(step.callback)
 		end
-		
-		if textThread then
-			task.cancel(textThread)
-			textThread = nil
-		end
-		textThread = task.spawn(animateText, step.text)
-	
+
+		showStepText(step.text)
+
 		local waitFunc = events[step.waitFor]
 		if waitFunc then
 			waitFunc(function()
 				warn("Completed step: " .. stepNum)
 			end)
 		else
-			warn("Missing tutorial event for: " .. step.waitFor)
+			warn("Missing tutorial event for: " .. tostring(step.waitFor))
 		end
+	end
+
+	if gameOverConnection then
+		gameOverConnection:Disconnect()
+		gameOverConnection = nil
 	end
 
 	if lost then
 		return
 	end
 
-	tween(dialogueFrame.UIScale, tweenInfo, {Scale = 0}):Play()
-
+	if dialogueScale then
+		tween(dialogueScale, tweenInfo, {Scale = 0})
+	end
 	warn("[TUTORIAL]: Completed :)")
 end
 
-local players = game:GetService('Players')
-if players.LocalPlayer:GetAttribute("TutorialWin") then return end
-repeat task.wait(.1) until players.LocalPlayer:FindFirstChild("DataLoaded")
-warn("Data Loaded.")
+if player:GetAttribute("TutorialWin") then
+	return
+end
 
-local Player = players.LocalPlayer
+repeat
+	task.wait(0.1)
+until player:FindFirstChild("DataLoaded")
 
-local condition = players.LocalPlayer:FindFirstChild("TutorialModeCompleted")
-local TutorialWin = Player.TutorialWin.Value
-if condition and condition.Value == true and not TutorialWin then
+local tutorialModeCompleted = player:FindFirstChild("TutorialModeCompleted")
+local tutorialWinValue = player:FindFirstChild("TutorialWin")
+
+if tutorialModeCompleted and tutorialModeCompleted.Value == true and tutorialWinValue and not tutorialWinValue.Value then
 	RunTutorial()
 end

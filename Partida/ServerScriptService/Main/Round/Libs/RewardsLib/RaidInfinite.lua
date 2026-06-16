@@ -22,8 +22,8 @@ return function(player)
 	player.Items[Variables.ActStats.ItemReward].Value += rewards["Items"][Variables.ActStats.ItemReward]
 	player.Gems.Value += rewards["Gems"]
 	player.RaidData.Credits.Value += rewards['Credits'] or 0 
-	
-	
+
+
 	local currentRound = Variables.CurrentRound or 0
 	local SpinCount = math.floor(currentRound / 100) -- 1 spin per 100 waves
 	local Amount = 0
@@ -35,11 +35,11 @@ return function(player)
 	player.TraitPoint.Value += Amount
 	rewards["TraitPoint"] = Amount
 
-	
+
 	--Variables.CurrentRound
-	
-	
-	
+
+
+
 
 
 	ReceiveRewardsEvent:FireClient(player,rewards,true)
@@ -47,6 +47,6 @@ return function(player)
 	if player.WorldStats[StoryModeStats.Worlds[game.Workspace.Info.World.Value]].InfiniteRecord.Value < Variables.CurrentRound then
 		player.WorldStats[StoryModeStats.Worlds[game.Workspace.Info.World.Value]].InfiniteRecord.Value = Variables.CurrentRound
 	end
-	
+
 	RewardProcessing(player)
 end

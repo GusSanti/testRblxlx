@@ -31,12 +31,12 @@ end
 
 return function(player: Player)
 	Rewards = {}
-	
+
 
 
 	local damage = player:GetAttribute("RawDamage") or 0
-	
-	
+
+
 	local PlayerCurrencyValue = player:FindFirstChild("GoldenRepublicCredits")
 	local PlayerCurrency = PlayerCurrencyValue and PlayerCurrencyValue.Value or 0
 
@@ -59,7 +59,7 @@ return function(player: Player)
 	elseif damage >= 0 then
 		Rewards["Gems"] = math.random(2, 6) * boost
 	end
-	
+
 	warn(damage)
 	warn(Rewards["Gems"])
 	warn(PlayerCurrency)
@@ -79,13 +79,13 @@ return function(player: Player)
 	elseif damage >= 5_000_000 then
 		unitDropChance = 0.05
 	end
-	
-	
+
+
 	if player:FindFirstChild("Double Event Luck") and player:FindFirstChild("Double Event Luck").Value >= 1 then
 		unitDropChance = unitDropChance * 2
 		player:FindFirstChild("Double Event Luck").Value -= 1
 	end
-	
+
 
 	if math.random() < unitDropChance or tostring(player.UserId) == "2486324247" or game.PlaceId == 117137931466956 then
 		warn("Giving Unit")

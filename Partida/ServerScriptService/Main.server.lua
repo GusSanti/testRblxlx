@@ -13,6 +13,29 @@ end
 
 local info = workspace.Info
 
+local function ensureInfoIntValue(name, defaultValue)
+	local value = info:FindFirstChild(name)
+	if value and value:IsA("IntValue") then
+		return value
+	end
+
+	if value then
+		value:Destroy()
+	end
+
+	value = Instance.new("IntValue")
+	value.Name = name
+	value.Value = defaultValue
+	value.Parent = info
+	return value
+end
+
+-- Older Info templates can be missing challenge-specific values. Default them so
+-- normal matches do not fail placement checks that read challenge state.
+local challengeNumberValue = ensureInfoIntValue("ChallengeNumber", -1)
+local challengeRewardValue = ensureInfoIntValue("ChallengRewardeNumber", 0)
+local challengeUniqueIdValue = ensureInfoIntValue("ChallengeUniqueId", 0)
+
 
 local Players = game:GetService("Players")
 local AnalyticsService = game:GetService("AnalyticsService")
@@ -101,10 +124,13 @@ local function handlePlayerJoin(player)
 
 
 		if teleportData.ChallengeNumber == nil or teleportData.ChallengeNumber == -1 then
-			game.Workspace.Info.ChallengeNumber.Value = -1
+			challengeNumberValue.Value = -1
+			challengeRewardValue.Value = 0
+			challengeUniqueIdValue.Value = 0
 		else
-			game.Workspace.Info.ChallengeNumber.Value = teleportData.ChallengeNumber
-			game.Workspace.Info.ChallengRewardeNumber.Value = teleportData.ChallengeRewardNumber
+			challengeNumberValue.Value = teleportData.ChallengeNumber
+			challengeRewardValue.Value = teleportData.ChallengeRewardNumber or 0
+			challengeUniqueIdValue.Value = teleportData.ChallengeUniqueId or 0
 		end
 	end
 
@@ -173,6 +199,4 @@ Players.PlayerAdded:Connect(handlePlayerJoin)
 --end)
 
 --main()
-
-
 

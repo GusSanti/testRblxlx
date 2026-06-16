@@ -14,17 +14,17 @@ local givenGems = nil
 
 return function(player)
 	local rewards = {}
-	
-	
+
+
 	if Variables.gemCounts[player] and not givenGems then
 		givenGems = math.round(Variables.gemCounts[player])
 	end
 
 	--rewards['Gems'] = (givenGems * (GetPlayerBoost(player, "Gems") or 1)) + 10
-	
+
 	rewards['Gems'] = math.round((givenGems or 1) * GetPlayerBoost(player, "Gems") or 1)
-	
-	
+
+
 	rewards["Items"] = {}
 	rewards["Items"][Variables.ActStats.ItemReward] = math.floor(Variables.CurrentRound/10)
 	rewards["OwnedTowers"] = Variables.infinityTowerReward
@@ -47,6 +47,6 @@ return function(player)
 	end
 
 	ReceiveRewardsEvent:FireClient(player,rewards,true)
-	
+
 	RewardProcessing(player)
 end

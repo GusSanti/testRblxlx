@@ -256,6 +256,12 @@ function mob.Spawn(name, quantity, map, old, health, money, speed, isBoss, unitS
 			end
 
 			local mobType = newMob:GetAttribute("Type")
+			if not mobType then
+				local typeValue = newMob:FindFirstChild("Type")
+				if typeValue and typeValue:IsA("StringValue") then
+					mobType = typeValue.Value
+				end
+			end
 			task.spawn(cloneScript, mobType, newMob)
 
 			newMob.Humanoid.MaxHealth = GameBalance.ApplyEnemyHealth(health or newMob.Humanoid.MaxHealth, isBoss or isbossrush)
