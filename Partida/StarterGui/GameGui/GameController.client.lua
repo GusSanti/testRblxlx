@@ -115,10 +115,20 @@ local spectatingTower = nil
 local spectateStopConnection = nil :: RBXScriptConnection?
 local spectateTowerAncestryConnection = nil :: RBXScriptConnection?
 local spectateVisualState = {}
+local PREVIEW_DEBUG_ENABLED = true
 -- FUNCTIONS
 EmitModule.init()
 SkipUI.AnchorPoint = Vector2.new(0.5, 0.5)
 SkipUI.Position = SKIP_CENTER_POSITION
+
+function previewDebug(...)
+	if not PREVIEW_DEBUG_ENABLED then
+		return
+	end
+
+	print("[PreviewDebug]", ...)
+end
+
 function PlacementDebug.log(...)
 	if not PlacementDebug.enabled then
 		return
@@ -543,6 +553,116 @@ function populateEmptySlotViewport(viewportFrame)
 	end
 
 	return moveGeneratedViewportIntoExistingViewport(viewportFrame, generatedViewport)
+end
+
+function getTowerPreviewMetadata(tower)
+	if not tower then
+		return false, nil, nil, nil
+	end
+
+	local config = tower:FindFirstChild("Config")
+	local shinyValue = config and config:FindFirstChild("Shiny")
+	local traitValue = config and config:FindFirstChild("Trait")
+	local timeObtainedValue = config and config:FindFirstChild("TimeObtained")
+	local takedownsValue = config and config:FindFirstChild("Takedowns")
+
+	local isShiny = tower:GetAttribute("Shiny") == true
+	if shinyValue and shinyValue:IsA("BoolValue") then
+		isShiny = shinyValue.Value
+	end
+
+	local traitName = tower:GetAttribute("Trait")
+	if traitValue and traitValue:IsA("StringValue") and traitValue.Value ~= "" then
+		traitName = traitValue.Value
+	end
+
+	local timeObtained = tower:GetAttribute("TimeObtained")
+	if timeObtained == nil and timeObtainedValue and timeObtainedValue:IsA("ValueBase") then
+		timeObtained = timeObtainedValue.Value
+	end
+
+	local takedowns = tower:GetAttribute("Takedowns")
+	if takedowns == nil and takedownsValue and takedownsValue:IsA("ValueBase") then
+		takedowns = takedownsValue.Value
+	end
+
+	return isShiny, traitName, timeObtained, takedowns
+end
+
+function createTowerPreviewSource(tower)
+	if not tower then
+		return nil
+	end
+
+	local previewSource = Instance.new("Folder")
+	previewSource.Name = tower.Name
+
+	local isShiny, traitName, timeObtained, takedowns = getTowerPreviewMetadata(tower)
+	previewSource:SetAttribute("Shiny", isShiny == true)
+
+	if traitName and traitName ~= "" then
+		previewSource:SetAttribute("Trait", traitName)
+	end
+
+	if timeObtained ~= nil then
+		previewSource:SetAttribute("TimeObtained", timeObtained)
+	end
+
+	if takedowns ~= nil then
+		previewSource:SetAttribute("Takedowns", takedowns)
+	end
+
+	return previewSource
+end
+
+function getTowerInfoPreviewContainer(profile)
+	local leftSection = Upgrade and Upgrade:FindFirstChild("Leftsection")
+	local previewFrame = leftSection and leftSection:FindFirstChild("PreviewFrame")
+	local previewViewport = previewFrame and previewFrame:FindFirstChild("Preview")
+	if previewViewport then
+		return previewViewport
+	end
+
+	if not profile then
+		return nil
+	end
+
+	return profile:FindFirstChild("Placeholder")
+		or profile:FindFirstChild("PlaceHolder")
+		or profile:FindFirstChild("ViewportFrame")
+end
+
+function populateTowerPreviewContainer(container, tower)
+	if not container or not tower then
+		return nil
+	end
+
+	local isShiny = getTowerPreviewMetadata(tower)
+
+	if container:IsA("ViewportFrame") then
+		clearViewportContents(container)
+
+		local generatedViewport = ViewPortModule.CreateViewPort(tower.Name, isShiny, true)
+		if not generatedViewport then
+			return nil
+		end
+
+		return moveGeneratedViewportIntoExistingViewport(container, generatedViewport)
+	end
+
+	for _, child in container:GetChildren() do
+		if child:IsA("ViewportFrame") then
+			safeDestroyViewport(child)
+		end
+	end
+
+	local generatedViewport = ViewPortModule.CreateViewPort(tower.Name, isShiny)
+	if not generatedViewport then
+		return nil
+	end
+
+	generatedViewport.Parent = container
+	return generatedViewport
 end
 
 function getTowerPriceMultiplier(tower)
@@ -1449,14 +1569,6 @@ toggleTowerInfo = function()
 		end
 		local towername = selectedTower.Name
 		Leftsection.Title.Text = towername
-		local sameTower = false
-		for i, v in Profile.Placeholder:GetChildren() do
-			if v:IsA("ViewportFrame") and v.Name ~= towername then
-				v:Destroy()
-			elseif v:IsA("ViewportFrame") then
-				sameTower = true
-			end
-		end
 		CreateRangeCircle(selectedTower)
 		newHighlight.Parent = selectedTower
 		Upgrade.Visible = true
@@ -1486,9 +1598,11 @@ toggleTowerInfo = function()
 				buffstring ..= ", " .. i .. " " .. tostring(v) .. "%"
 			end
 		end
-		if not sameTower then
-			local vp = ViewPortModule.CreateViewPort(towername, config.Shiny.Value)
-			vp.Parent = Profile.Placeholder
+		local previewContainer = getTowerInfoPreviewContainer(Profile)
+		if previewContainer then
+			populateTowerPreviewContainer(previewContainer, selectedTower)
+		else
+			warn("Profile sem container de preview:", Profile:GetFullName())
 		end
 		if config.Shiny.Value and Profile:FindFirstChild("Shiny") then
 			Profile.Shiny.Visible = true
@@ -1751,6 +1865,117 @@ function SpectateFunc()
 		startSpectating(selectedTower)
 	end
 end
+
+function PreviewTowerFunc()
+	previewDebug(
+		"PreviewTowerFunc:start",
+		"selectedTower=",
+		selectedTower and selectedTower:GetFullName() or "nil"
+	)
+
+	if not selectedTower then
+		previewDebug("PreviewTowerFunc:abort", "selectedTower=nil")
+		return
+	end
+
+	local unitStats = upgradesModule[selectedTower.Name]
+	if not unitStats then
+		previewDebug("PreviewTowerFunc:abort", "unitStats=nil", "tower=", selectedTower.Name)
+		return
+	end
+
+	local previewSource = createTowerPreviewSource(selectedTower)
+	if not previewSource then
+		previewDebug("PreviewTowerFunc:abort", "previewSource=nil", "tower=", selectedTower.Name)
+		return
+	end
+
+	local success, err = pcall(function()
+		previewDebug("PreviewTowerFunc:launch", "tower=", selectedTower.Name)
+		ViewModule.Hatch({unitStats, previewSource, function()
+			previewDebug("PreviewTowerFunc:resume-callback", "tower=", previewSource.Name)
+			previewSource:Destroy()
+		end})
+	end)
+
+	if not success then
+		previewSource:Destroy()
+		previewDebug("PreviewTowerFunc:error", "tower=", selectedTower.Name, "error=", err)
+		warn("Falha ao abrir preview da torre:", selectedTower.Name, err)
+	else
+		previewDebug("PreviewTowerFunc:success", "tower=", selectedTower.Name)
+	end
+end
+
+function resolveSpectateButtons()
+	local buttons = {}
+	local seenButtons = {}
+
+	local function addButton(candidate, label)
+		local resolvedButton = getClickTarget(nil, candidate)
+		if not resolvedButton or not resolvedButton:IsA("GuiButton") then
+			previewDebug("resolveSpectateButtons:missing", label)
+			return
+		end
+
+		if seenButtons[resolvedButton] then
+			return
+		end
+
+		seenButtons[resolvedButton] = true
+		table.insert(buttons, {
+			button = resolvedButton,
+			label = label,
+		})
+	end
+
+	local leftSection = Upgrade and Upgrade:FindFirstChild("Leftsection")
+	local previewFrame = leftSection and leftSection:FindFirstChild("PreviewFrame")
+	addButton(previewFrame and previewFrame:FindFirstChild("Spectate"), "NewUI.Scout.Leftsection.PreviewFrame.Spectate")
+
+	return buttons
+end
+
+function bindPreviewSpectateButtons()
+	for _, data in resolveSpectateButtons() do
+		local button = data.button
+		if button:GetAttribute("PreviewSpectateBound") then
+			continue
+		end
+
+		button:SetAttribute("PreviewSpectateBound", true)
+		local lastTriggerAt = 0
+		local function onTriggered(source)
+			local now = os.clock()
+			if now - lastTriggerAt < 0.15 then
+				return
+			end
+
+			lastTriggerAt = now
+			previewDebug(
+				"SpectateButton:triggered",
+				"label=",
+				data.label,
+				"source=",
+				source,
+				"button=",
+				button:GetFullName(),
+				"selectedTower=",
+				selectedTower and selectedTower:GetFullName() or "nil"
+			)
+			PreviewTowerFunc()
+		end
+
+		button.Activated:Connect(function()
+			onTriggered("Activated")
+		end)
+		button.MouseButton1Click:Connect(function()
+			onTriggered("MouseButton1Click")
+		end)
+
+		previewDebug("SpectateButton:bound", "label=", data.label, "button=", button:GetFullName())
+	end
+end
 local KeyBinds = {
 	F = UpgradeFunc,
 	X = SellFunc,
@@ -1861,6 +2086,17 @@ do
 		FailedScreen.Visible = false
 		VictoryScreen.Visible = false
 		activeEndScreen = nil
+	end
+	function closeEndScreen(screen)
+		endScreenDisplayToken += 1
+		if workspace.CurrentCamera:FindFirstChild("Blur") then
+			workspace.CurrentCamera.Blur:Destroy()
+		end
+		if screen and screen:IsA("GuiObject") then
+			screen.Visible = false
+		end
+		hideAllEndScreens()
+		EndScreenGUIDisable(true)
 	end
 	function getNumberFromSources(sources, names)
 		for _, source in sources do
@@ -1976,6 +2212,33 @@ do
 		elseif buttonFrame:IsA("GuiButton") then
 			endScreenConnections[#endScreenConnections + 1] = buttonFrame.Activated:Connect(callback)
 		end
+	end
+	function bindPersistentEndScreenClose(screen)
+		if not screen then
+			return
+		end
+
+		local closeButton = screen:FindFirstChild("Closebtn")
+		if not closeButton then
+			return
+		end
+
+		local targetButton = (closeButton:IsA("GuiButton") and closeButton)
+			or closeButton:FindFirstChild("Btn")
+			or closeButton:FindFirstChildWhichIsA("GuiButton", true)
+
+		if not targetButton or not targetButton:IsA("GuiButton") then
+			return
+		end
+
+		if targetButton:GetAttribute("PersistentCloseBound") then
+			return
+		end
+
+		targetButton:SetAttribute("PersistentCloseBound", true)
+		targetButton.Activated:Connect(function()
+			closeEndScreen(screen)
+		end)
 	end
 	function createFlatNumberSequence(value)
 		return NumberSequence.new({
@@ -2786,16 +3049,9 @@ do
 				EndScreenGUIDisable(true)
 			end)
 		end
-		if screen:FindFirstChild("Closebtn") and screen.Closebtn:IsA("GuiButton") then
-			endScreenConnections[#endScreenConnections + 1] = screen.Closebtn.Activated:Connect(function()
-				endScreenDisplayToken += 1
-				if workspace.CurrentCamera:FindFirstChild("Blur") then
-					workspace.CurrentCamera.Blur:Destroy()
-				end
-				hideAllEndScreens()
-				EndScreenGUIDisable(true)
-			end)
-		end
+		connectEndScreenButton(screen:FindFirstChild("Closebtn"), function()
+			closeEndScreen(screen)
+		end)
 	end
 	function DisplayEndScreen(status)
 		endScreenDisplayToken += 1
@@ -2971,6 +3227,8 @@ function LoadGui()
 end
 -- INIT
 repeat task.wait() until player:FindFirstChild("DataLoaded")
+bindPersistentEndScreenClose(FailedScreen)
+bindPersistentEndScreenClose(VictoryScreen)
 for _, ownedTower in player.OwnedTowers:GetChildren() do
 	watchOwnedTower(ownedTower)
 end
@@ -2993,9 +3251,17 @@ info.Wave.Changed:Connect(updateWaveDisplays)
 Upgrade:WaitForChild("Rightsection").Buttons.Upgrade.Btn.Activated:Connect(UpgradeFunc)
 Upgrade:WaitForChild("Rightsection").Buttons.Sell.Btn.Activated:Connect(SellFunc)
 Upgrade:WaitForChild("Rightsection").Buttons.Target.Btn.Activated:Connect(TargetFunc)
-if Upgrade:FindFirstChild("Spectate") then
-	Upgrade.Spectate.Activated:Connect(SpectateFunc)
-end
+bindPreviewSpectateButtons()
+gui.DescendantAdded:Connect(function(descendant)
+	if descendant.Name == "Spectate" or descendant.Name == "PreviewFrame" or descendant.Name == "Preview" then
+		task.defer(bindPreviewSpectateButtons)
+	end
+end)
+playerguix.DescendantAdded:Connect(function(descendant)
+	if descendant.Name == "Spectate" or descendant.Name == "PreviewFrame" or descendant.Name == "Preview" then
+		task.defer(bindPreviewSpectateButtons)
+	end
+end)
 UserInputService.InputBegan:Connect(onKeyBindPress)
 SkipUI.Button.Yes.Btn.Activated:Connect(function()
 	UIHandler.PlaySound("Skip")

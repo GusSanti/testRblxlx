@@ -7,6 +7,11 @@ local sounds = {}
 function module.playSound(sound: Sound, timeShouldRepeatAt: number)
 	local soundRef = sound:Clone()
 	table.insert(sounds, soundRef)
+	soundRef:SetAttribute("AudioCategory", "Game")
+	local gameSoundGroup = SoundService:FindFirstChild("Game")
+	if gameSoundGroup and gameSoundGroup:IsA("SoundGroup") then
+		soundRef.SoundGroup = gameSoundGroup
+	end
 	soundRef.Parent = SoundService
 	soundRef:Play()
 

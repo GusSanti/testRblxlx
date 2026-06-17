@@ -63,10 +63,24 @@ local function spinMeRightRoundBaby(part)
 	end)
 end
 
+local function tagGameSounds(root)
+	local gameSoundGroup = SoundService:FindFirstChild("Game")
+
+	for _, descendant in root:GetDescendants() do
+		if descendant:IsA("Sound") then
+			descendant:SetAttribute("AudioCategory", "Game")
+			if gameSoundGroup and gameSoundGroup:IsA("SoundGroup") then
+				descendant.SoundGroup = gameSoundGroup
+			end
+		end
+	end
+end
+
 local Alarms = {}
 
 local function spawnAlarm(pos)
 	local Alarm = ReplicatedStorage.Assets.Stardestroyer.Alarm:Clone()
+	tagGameSounds(Alarm)
 	local x, y, z = Alarm:GetPivot():ToEulerAnglesXYZ()
 	local OriginPos = CFrame.new(pos + Vector3.new(0, heightOffset, 0)) * CFrame.Angles(x, y, z)
 	table.insert(Alarms, Alarm)
