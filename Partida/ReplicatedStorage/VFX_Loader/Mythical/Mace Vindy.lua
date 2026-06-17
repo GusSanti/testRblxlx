@@ -188,7 +188,14 @@ module["Blade Descent"] = function(HRP, target)
 	Debris:AddItem(teleposrSE,1/speed)
 	VFX_Helper.EmitAllParticles(teleposrSE)
 	
-	HRP.CFrame = HRP.Parent:WaitForChild("TowerBasePart").CFrame
+	local towerBase = HRP.Parent:FindFirstChild("TowerBasePart")
+	if towerBase then
+		HRP.Parent:PivotTo(towerBase.CFrame)
+		local bodyGyro = HRP:FindFirstChild("BodyGyro")
+		if bodyGyro then
+			bodyGyro.CFrame = towerBase.CFrame
+		end
+	end
 	local teleposr = Folder:WaitForChild("teleport"):Clone()
 	teleposr.CFrame = HRP.CFrame + Vector3.new(0,-0.5,0)
 	teleposr.Parent = vfxFolder	

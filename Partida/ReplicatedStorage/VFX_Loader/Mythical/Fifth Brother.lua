@@ -160,6 +160,10 @@ module["Saber Dash"] = function(HRP: BasePart, target: Model)
 	task.wait(1 / speed)
 	if not HRP or not HRP.Parent then return end
 	characterModel:PivotTo(originalCFrame)
+	local bodyGyro = HRP:FindFirstChild("BodyGyro")
+	if bodyGyro then
+		bodyGyro.CFrame = originalCFrame
+	end
 	
 	
 	Debris:AddItem(SaberDash, 1 / speed)

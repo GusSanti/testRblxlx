@@ -198,7 +198,14 @@ module["Boulder Toss"] = function(HRP, target)
 	Debris:AddItem(telepost, 1/speed)
 	VFX_Helper.EmitAllParticles(telepost)
 
-	HRP.CFrame = HRP.Parent:WaitForChild("TowerBasePart").CFrame
+	local towerBase = HRP.Parent:FindFirstChild("TowerBasePart")
+	if towerBase then
+		HRP.Parent:PivotTo(towerBase.CFrame)
+		local bodyGyro = HRP:FindFirstChild("BodyGyro")
+		if bodyGyro then
+			bodyGyro.CFrame = towerBase.CFrame
+		end
+	end
 	HRP.Parent.Attacking.Value = false
 	connection:Disconnect()
 
@@ -260,7 +267,14 @@ module["Doom Leap"] = function(HRP, target)
 	VFX_Helper.EmitAllParticles(teleposrSE)
 	UnitSoundEffectLib.playSound(HRP.Parent, 'Explosion')
 
-	HRP.CFrame = HRP.Parent:WaitForChild("TowerBasePart").CFrame
+	local towerBase = HRP.Parent:FindFirstChild("TowerBasePart")
+	if towerBase then
+		HRP.Parent:PivotTo(towerBase.CFrame)
+		local bodyGyro = HRP:FindFirstChild("BodyGyro")
+		if bodyGyro then
+			bodyGyro.CFrame = towerBase.CFrame
+		end
+	end
 	local teleposr = Folder:WaitForChild("Teleportbls"):Clone()
 	teleposr.CFrame = HRP.CFrame + Vector3.new(0,-0.5,0)
 	teleposr.Parent = vfxFolder	

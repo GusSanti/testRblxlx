@@ -146,7 +146,14 @@ module["Ki Mundi Attack"] = function(HRP, target)
 		VFX_Helper.EmitAllParticles(teleposr)
 	end
 
-	HRP.CFrame = HRP.Parent:WaitForChild("TowerBasePart").CFrame
+	local towerBase = HRP.Parent:FindFirstChild("TowerBasePart")
+	if towerBase then
+		HRP.Parent:PivotTo(towerBase.CFrame)
+		local bodyGyro = HRP:FindFirstChild("BodyGyro")
+		if bodyGyro then
+			bodyGyro.CFrame = towerBase.CFrame
+		end
+	end
 
 	local teleportEffect2 = KiMundiFolder:FindFirstChild("teleport")
 	if teleportEffect2 then

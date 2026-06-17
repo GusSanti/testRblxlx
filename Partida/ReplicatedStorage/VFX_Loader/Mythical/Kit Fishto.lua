@@ -180,7 +180,14 @@ module["Blade Rush"] = function(HRP, target)
 	VFX_Helper.EmitAllParticles(trail)
 	task.wait(0.1/speed)
 	if not HRP or not HRP.Parent then return end
-	HRP.CFrame = HRP.Parent:WaitForChild("TowerBasePart").CFrame
+	local towerBase = HRP.Parent:FindFirstChild("TowerBasePart")
+	if towerBase then
+		HRP.Parent:PivotTo(towerBase.CFrame)
+		local bodyGyro = HRP:FindFirstChild("BodyGyro")
+		if bodyGyro then
+			bodyGyro.CFrame = towerBase.CFrame
+		end
+	end
 	VFX_Helper.EmitAllParticles(trail)
 	
 	handleR.Enabled = false

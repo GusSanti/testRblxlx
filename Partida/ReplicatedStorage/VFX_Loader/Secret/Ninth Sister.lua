@@ -106,8 +106,15 @@ module["Charge Down"] = function(HRP, target)
 
 		if not HRP or not HRP.Parent then return end
 
-		if not isPossessed and HRP.Parent:FindFirstChild("TowerBasePart") then
-			HRP.CFrame = HRP.Parent.TowerBasePart.CFrame
+		if not isPossessed then
+			local towerBase = HRP.Parent:FindFirstChild("TowerBasePart")
+			if towerBase then
+				HRP.Parent:PivotTo(towerBase.CFrame)
+				local bodyGyro = HRP:FindFirstChild("BodyGyro")
+				if bodyGyro then
+					bodyGyro.CFrame = towerBase.CFrame
+				end
+			end
 		end
 
 		for _, particle in vfx:GetDescendants() do

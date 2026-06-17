@@ -65,7 +65,14 @@ module["Run it down"] = function(HRP, target)
 
 	if not HRP or not HRP.Parent then return end
 
-	HRP.CFrame = HRP.Parent:WaitForChild("TowerBasePart").CFrame
+	local towerBase = HRP.Parent:FindFirstChild("TowerBasePart")
+	if towerBase then
+		HRP.Parent:PivotTo(towerBase.CFrame)
+		local bodyGyro = HRP:FindFirstChild("BodyGyro")
+		if bodyGyro then
+			bodyGyro.CFrame = towerBase.CFrame
+		end
+	end
 	
 	for _, particle in vfx:GetDescendants() do
 		if not particle:IsA("ParticleEmitter") then continue end

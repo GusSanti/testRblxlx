@@ -90,7 +90,14 @@ module["Whirlwind of Darkness"] = function(HRP, target)
 
 	if not HRP or not HRP.Parent then return end
 
-	HRP.CFrame = HRP.Parent:WaitForChild("TowerBasePart").CFrame
+	local towerBase = HRP.Parent:FindFirstChild("TowerBasePart")
+	if towerBase then
+		HRP.Parent:PivotTo(towerBase.CFrame)
+		local bodyGyro = HRP:FindFirstChild("BodyGyro")
+		if bodyGyro then
+			bodyGyro.CFrame = towerBase.CFrame
+		end
+	end
 	HRP.Parent.Attacking.Value = false
 end
 
@@ -165,7 +172,14 @@ module["Doom Leap"] = function(HRP, target)
 
 	if not HRP or not HRP.Parent then return end
 
-	HRP.CFrame = HRP.Parent:WaitForChild("TowerBasePart").CFrame
+	local towerBase = HRP.Parent:FindFirstChild("TowerBasePart")
+	if towerBase then
+		HRP.Parent:PivotTo(towerBase.CFrame)
+		local bodyGyro = HRP:FindFirstChild("BodyGyro")
+		if bodyGyro then
+			bodyGyro.CFrame = towerBase.CFrame
+		end
+	end
 	HRP.Parent.Attacking.Value = false
 end
 

@@ -75,7 +75,14 @@ module["Dual Laceration"] = function(HRP, target)
 	teleposr.Parent = vfxFolder	
 	Debris:AddItem(teleposr, 1/speed)
 	VFX_Helper.EmitAllParticles(teleposr)
-	HRP.CFrame = HRP.Parent:WaitForChild("TowerBasePart").CFrame
+	local towerBase = HRP.Parent:FindFirstChild("TowerBasePart")
+	if towerBase then
+		HRP.Parent:PivotTo(towerBase.CFrame)
+		local bodyGyro = HRP:FindFirstChild("BodyGyro")
+		if bodyGyro then
+			bodyGyro.CFrame = towerBase.CFrame
+		end
+	end
 	local teleposttt = Folder:WaitForChild("teleport"):Clone()
 	teleposttt.CFrame = HRP.CFrame + Vector3.new(0, -0.5, 0)
 	teleposttt.Parent = vfxFolder	
@@ -146,7 +153,14 @@ module["Echo Strike"] = function(HRP, target)
 	teleposr.Parent = vfxFolder	
 	Debris:AddItem(teleposr, 1/speed)
 	VFX_Helper.EmitAllParticles(teleposr)
-	HRP.CFrame = HRP.Parent:WaitForChild("TowerBasePart").CFrame
+	local towerBase = HRP.Parent:FindFirstChild("TowerBasePart")
+	if towerBase then
+		HRP.Parent:PivotTo(towerBase.CFrame)
+		local bodyGyro = HRP:FindFirstChild("BodyGyro")
+		if bodyGyro then
+			bodyGyro.CFrame = towerBase.CFrame
+		end
+	end
 	local teleposttt = Folder:WaitForChild("teleport"):Clone()
 	teleposttt.CFrame = HRP.CFrame + Vector3.new(0, -0.5, 0)
 	teleposttt.Parent = vfxFolder	
@@ -254,7 +268,14 @@ module["Boulder Toss"] = function(HRP, target)
 	Debris:AddItem(telepost, 1/speed)
 	VFX_Helper.EmitAllParticles(telepost)
 
-	HRP.CFrame = HRP.Parent:WaitForChild("TowerBasePart").CFrame
+	local towerBase = HRP.Parent:FindFirstChild("TowerBasePart")
+	if towerBase then
+		HRP.Parent:PivotTo(towerBase.CFrame)
+		local bodyGyro = HRP:FindFirstChild("BodyGyro")
+		if bodyGyro then
+			bodyGyro.CFrame = towerBase.CFrame
+		end
+	end
 	handleR.Enabled = false
 	HRP.Parent.Attacking.Value = false
 	connection:Disconnect()
@@ -356,7 +377,14 @@ module["Force Boulder"] = function(HRP, target)
 	VFX_Helper.EmitAllParticles(telepost)
 	UnitSoundEffectLib.playSound(HRP.Parent, 'Explosion')
 
-	HRP.CFrame = HRP.Parent:WaitForChild("TowerBasePart").CFrame
+	local towerBase = HRP.Parent:FindFirstChild("TowerBasePart")
+	if towerBase then
+		HRP.Parent:PivotTo(towerBase.CFrame)
+		local bodyGyro = HRP:FindFirstChild("BodyGyro")
+		if bodyGyro then
+			bodyGyro.CFrame = towerBase.CFrame
+		end
+	end
 	handleR.Enabled = false
 	HRP.Parent.Attacking.Value = false
 	connection:Disconnect()
@@ -442,7 +470,14 @@ module["Lightsaber Barrage"] = function(HRP, target)
 	if not HRP or not HRP.Parent then return end
 	VFX_Helper.OffAllParticles(trail)
 
-	HRP.CFrame = HRP.Parent:WaitForChild("TowerBasePart").CFrame
+	local towerBase = HRP.Parent:FindFirstChild("TowerBasePart")
+	if towerBase then
+		HRP.Parent:PivotTo(towerBase.CFrame)
+		local bodyGyro = HRP:FindFirstChild("BodyGyro")
+		if bodyGyro then
+			bodyGyro.CFrame = towerBase.CFrame
+		end
+	end
 	local teleposrrr = Folder:WaitForChild("teleport"):Clone()
 	teleposrrr.CFrame = HRP.CFrame + Vector3.new(0,-0.5,0)
 	teleposrrr.Parent = vfxFolder	

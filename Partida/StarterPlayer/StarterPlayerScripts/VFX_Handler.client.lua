@@ -362,16 +362,6 @@ while task.wait() do
 					if v:FindFirstChild("VFXTowerBasePart") then
 						TS:Create(v.VFXTowerBasePart,TweenInfo.new(0.2/GameSpeed.Value,Enum.EasingStyle.Sine),{CFrame = targetCFrame}):Play()
 					end
-					if game.Workspace.CurrentCamera:FindFirstChild("SplashPart") and v:FindFirstChild("SplashPositionPart") then
-
-						local newCFrame = CFrame.new(target.HumanoidRootPart.Position) * CFrame.new(0,target.HumanoidRootPart.Size.Y*-1.45,0)
-						TS:Create(v.SplashPositionPart,TweenInfo.new(0.2/GameSpeed.Value,Enum.EasingStyle.Sine),{Position = newCFrame.Position}):Play()  --target.HumanoidRootPart.CFrame * CFrame.new(0,target.HumanoidRootPart.Size.Y*-1.45,0)
-						if game.Workspace.CurrentCamera.SplashPart:FindFirstChild("Arrows") then
-							--TS:Create(game.Workspace.CurrentCamera.SplashPart,TweenInfo.new(0.2,Enum.EasingStyle.Sine),{Rotation = Vector3.new(0,0,0)}):Play()
-							local part1Position = game.Workspace.CurrentCamera.SplashPart.WeldConstraint.Part1.Position + Vector3.new(0,0.2,0)
-							TS:Create(game.Workspace.CurrentCamera.SplashPart.Arrows.Part2,TweenInfo.new(0.2/GameSpeed.Value,Enum.EasingStyle.Sine),{CFrame = CFrame.new(part1Position) * CFrame.Angles(0, 0, math.rad(-90))}):Play()
-						end
-					end	
 				end
 			end
 		end

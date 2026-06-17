@@ -1005,7 +1005,6 @@ function CreateRangeCircle(tower: Model, placeholder)
 	local range = TowerInfo.GetRange(tower, placeholder)
 	local height = (HumanoidRootPart.Size.Y * 2.5) / 2
 	local offset = CFrame.new(0, -height, 0)
-	local _, YOrientation, _ = HumanoidRootPart.CFrame:ToOrientation()
 	local VFXTowerBasePart
 	if tower:FindFirstChild("VFXTowerBasePart") then
 		VFXTowerBasePart = tower:FindFirstChild("VFXTowerBasePart")
@@ -1036,6 +1035,7 @@ function CreateRangeCircle(tower: Model, placeholder)
 		TowerBasePart.Size = Vector3.new(HumanoidRootPart.Size.Y, HumanoidRootPart.Size.Y, HumanoidRootPart.Size.Y)
 		TowerBasePart.Parent = tower
 	end
+	local previewBasePart = if placeholder then VFXTowerBasePart else TowerBasePart
 	if placeholder then
 		local p = ReplicatedStorage.VFX.Range:Clone()
 		p.CFrame = VFXTowerBasePart.CFrame * offset
@@ -1052,15 +1052,14 @@ function CreateRangeCircle(tower: Model, placeholder)
 		att.Parent = VFXTowerBasePart
 		att.Outline:Emit(1)
 	else
-		tower.VFXTowerBasePart.CFrame = CFrame.new(tower.VFXTowerBasePart.Position) * CFrame.Angles(0, YOrientation, 0)
 		local p = ReplicatedStorage.VFX.RangeSphere:Clone()
 		p.Name = "Range"
 		p.Size = rangesize
-		p.CFrame = tower.VFXTowerBasePart.CFrame * offset
+		p.CFrame = previewBasePart.CFrame * offset
 		local p2 = ReplicatedStorage.VFX.Range:Clone()
 		p2.Name = "Range2"
 		p2.Anchored = true
-		p2.CFrame = tower.VFXTowerBasePart.CFrame * offset
+		p2.CFrame = previewBasePart.CFrame * offset
 		p2.Size = Vector3.new(rangesize.X + 0.01, 0.01, rangesize.Z + 0.01)
 		p2.Parent = workspace.Camera
 		p.Anchored = true
@@ -1090,9 +1089,9 @@ function CreateRangeCircle(tower: Model, placeholder)
 			coneaoe.Anchored = false
 			local weld = Instance.new("WeldConstraint")
 			coneaoe.Size = Vector3.new((config.AOESize / 45) * range * 2, 0, range)
-			coneaoe.CFrame = tower.VFXTowerBasePart.CFrame * CFrame.new(0, VFXTowerBasePart.Size.Y * -1.45, -(coneaoe.Size.Z / 2))
+			coneaoe.CFrame = previewBasePart.CFrame * CFrame.new(0, HumanoidRootPart.Size.Y * -1.45, -(coneaoe.Size.Z / 2))
 			weld.Part0 = coneaoe
-			weld.Part1 = tower.VFXTowerBasePart
+			weld.Part1 = previewBasePart
 			weld.Parent = coneaoe
 			coneaoe.Parent = game.Workspace.Camera
 		elseif config.AOEType == "Splash" and config.Type.Value ~= "Spawner" then
@@ -1114,11 +1113,11 @@ function CreateRangeCircle(tower: Model, placeholder)
 			TweenService:Create(splashaoe, TweenInfo.new(4, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, math.huge, false), {Rotation = Vector3.new(0, 360, 0)}):Play()
 			local arrows = script.Arrows:Clone()
 			arrows.Parent = splashaoe
-			arrows.Part1.Position = tower.VFXTowerBasePart.Position
+			arrows.Part1.Position = previewBasePart.Position
 			if placeholder then
 				local weld1 = Instance.new("WeldConstraint")
 				weld1.Part0 = arrows.Part1
-				weld1.Part1 = tower.VFXTowerBasePart
+				weld1.Part1 = previewBasePart
 				weld1.Parent = arrows.Part1
 				arrows.Part1.Anchored = false
 			end
@@ -1132,10 +1131,10 @@ function CreateRangeCircle(tower: Model, placeholder)
 			local fullaoe = ReplicatedStorage.VFX.SplashPart:Clone()
 			fullaoe.Anchored = false
 			fullaoe.Size = Vector3.new(range * 2, 0, range * 2)
-			fullaoe.Position = tower.VFXTowerBasePart.Position - Vector3.new(0, VFXTowerBasePart.Size.Y * 1.45, 0)
+			fullaoe.Position = previewBasePart.Position - Vector3.new(0, HumanoidRootPart.Size.Y * 1.45, 0)
 			local weld1 = Instance.new("WeldConstraint")
 			weld1.Part0 = fullaoe
-			weld1.Part1 = tower.VFXTowerBasePart
+			weld1.Part1 = previewBasePart
 			weld1.Parent = fullaoe
 			fullaoe.Parent = game.Workspace.Camera
 			TweenService:Create(fullaoe, TweenInfo.new(4, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, math.huge, false), {Rotation = Vector3.new(0, 360, 0)}):Play()

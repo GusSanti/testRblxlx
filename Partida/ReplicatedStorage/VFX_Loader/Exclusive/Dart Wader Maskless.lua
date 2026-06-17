@@ -79,6 +79,10 @@ module["Fury"] = function(HRP, target)
 	if not HRP or not HRP.Parent then return end
 
 	characterModel:PivotTo(originalCFrame)
+	local bodyGyro = HRP:FindFirstChild("BodyGyro")
+	if bodyGyro then
+		bodyGyro.CFrame = originalCFrame
+	end
 	characterModel.Attacking.Value = false
 end
 
@@ -231,7 +235,11 @@ module["AOE Attack"] = function(HRP, target)
 	task.wait(0.2 / speed)
 
 	if HRP and HRP.Parent and characterModel:FindFirstChild("TowerBasePart") then
-		HRP.CFrame = characterModel.TowerBasePart.CFrame
+		characterModel:PivotTo(characterModel.TowerBasePart.CFrame)
+		local bodyGyro = HRP:FindFirstChild("BodyGyro")
+		if bodyGyro then
+			bodyGyro.CFrame = characterModel.TowerBasePart.CFrame
+		end
 		task.wait(0.5 / speed)
 
 		if HRP and HRP.Parent then
