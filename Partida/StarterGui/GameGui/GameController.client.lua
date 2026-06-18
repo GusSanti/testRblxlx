@@ -913,6 +913,17 @@ function CheckIfPc()
 		return true
 	end
 end
+function HideScoutToolbarsOnMobile()
+	if CheckIfPc() ~= false then
+		return
+	end
+
+	for _, descendant in Upgrade:GetDescendants() do
+		if descendant.Name == "TOOLBAR" and descendant:IsA("GuiObject") then
+			descendant.Visible = false
+		end
+	end
+end
 function EndScreenGUIDisable(value)
 	IngameHud.Bottom.AmountMoney.Visible = value
 	IngameHud.Bottom.Slot.Visible = value
@@ -1116,6 +1127,8 @@ createplacementbox = function()
 end
 function CreateRangeCircle(tower: Model, placeholder)
 	local HumanoidRootPart = tower:WaitForChild("HumanoidRootPart")
+	local indicatorHeightOffset = 0.25
+	local flatIndicatorThickness = 0.05
 	local rangesize = Vector3.new(0, 0, 0)
 	if game.Workspace.Camera:FindFirstChild("Range") then
 		rangesize = game.Workspace.Camera.Range.Size
@@ -1124,7 +1137,8 @@ function CreateRangeCircle(tower: Model, placeholder)
 	local config = if placeholder then upgradesModule[tower.Name].Upgrades[1] else upgradesModule[tower.Name].Upgrades[tower.Config:WaitForChild("Upgrades").Value]
 	local range = TowerInfo.GetRange(tower, placeholder)
 	local height = (HumanoidRootPart.Size.Y * 2.5) / 2
-	local offset = CFrame.new(0, -height, 0)
+	local offset = CFrame.new(0, -height + indicatorHeightOffset, 0)
+	local aoeYOffset = HumanoidRootPart.Size.Y * -1.45 + indicatorHeightOffset
 	local VFXTowerBasePart
 	if tower:FindFirstChild("VFXTowerBasePart") then
 		VFXTowerBasePart = tower:FindFirstChild("VFXTowerBasePart")
@@ -1159,7 +1173,7 @@ function CreateRangeCircle(tower: Model, placeholder)
 	if placeholder then
 		local p = ReplicatedStorage.VFX.Range:Clone()
 		p.CFrame = VFXTowerBasePart.CFrame * offset
-		p.Size = Vector3.new(range * 2, 0.01, range * 2)
+		p.Size = Vector3.new(range * 2, flatIndicatorThickness, range * 2)
 		p.Anchored = false
 		local weld = Instance.new("WeldConstraint")
 		weld.Part0 = p
@@ -1180,11 +1194,11 @@ function CreateRangeCircle(tower: Model, placeholder)
 		p2.Name = "Range2"
 		p2.Anchored = true
 		p2.CFrame = previewBasePart.CFrame * offset
-		p2.Size = Vector3.new(rangesize.X + 0.01, 0.01, rangesize.Z + 0.01)
+		p2.Size = Vector3.new(rangesize.X + 0.01, flatIndicatorThickness, rangesize.Z + 0.01)
 		p2.Parent = workspace.Camera
 		p.Anchored = true
 		p.Parent = workspace.Camera
-		TweenService:Create(p2, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0), {Size = Vector3.new(range * 2, 0.01, range * 2)}):Play()
+		TweenService:Create(p2, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0), {Size = Vector3.new(range * 2, flatIndicatorThickness, range * 2)}):Play()
 		TweenService:Create(p, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0), {Size = Vector3.new(range * 2, range * 2, range * 2)}):Play()
 	end
 	warn("DEBUG XO1")
@@ -1208,8 +1222,8 @@ function CreateRangeCircle(tower: Model, placeholder)
 			local coneaoe = ReplicatedStorage.VFX.ConeAOE:Clone()
 			coneaoe.Anchored = false
 			local weld = Instance.new("WeldConstraint")
-			coneaoe.Size = Vector3.new((config.AOESize / 45) * range * 2, 0, range)
-			coneaoe.CFrame = previewBasePart.CFrame * CFrame.new(0, HumanoidRootPart.Size.Y * -1.45, -(coneaoe.Size.Z / 2))
+			coneaoe.Size = Vector3.new((config.AOESize / 45) * range * 2, flatIndicatorThickness, range)
+			coneaoe.CFrame = previewBasePart.CFrame * CFrame.new(0, aoeYOffset, -(coneaoe.Size.Z / 2))
 			weld.Part0 = coneaoe
 			weld.Part1 = previewBasePart
 			weld.Parent = coneaoe
@@ -1218,12 +1232,12 @@ function CreateRangeCircle(tower: Model, placeholder)
 			local splashaoe = ReplicatedStorage.VFX.SplashPart:Clone()
 			splashaoe.Anchored = false
 			local weld = Instance.new("WeldConstraint")
-			splashaoe.Size = Vector3.new(config.AOESize * 2, 0, config.AOESize * 2)
+			splashaoe.Size = Vector3.new(config.AOESize * 2, flatIndicatorThickness, config.AOESize * 2)
 			if not placeholder then
 				splashaoe.CFrame = CFrame.new(tower:WaitForChild("SplashPositionPart").Position)
 				weld.Part1 = tower.SplashPositionPart
 			else
-				local newCFrame = CFrame.new((VFXTowerBasePart.CFrame * CFrame.new(0, 0, -config.AOESize * 1.5)).Position)
+				local newCFrame = CFrame.new((VFXTowerBasePart.CFrame * CFrame.new(0, indicatorHeightOffset, -config.AOESize * 1.5)).Position)
 				splashaoe.CFrame = newCFrame
 				weld.Part1 = VFXTowerBasePart
 			end
@@ -1250,8 +1264,8 @@ function CreateRangeCircle(tower: Model, placeholder)
 		elseif config.AOEType == "AOE" then
 			local fullaoe = ReplicatedStorage.VFX.SplashPart:Clone()
 			fullaoe.Anchored = false
-			fullaoe.Size = Vector3.new(range * 2, 0, range * 2)
-			fullaoe.Position = previewBasePart.Position - Vector3.new(0, HumanoidRootPart.Size.Y * 1.45, 0)
+			fullaoe.Size = Vector3.new(range * 2, flatIndicatorThickness, range * 2)
+			fullaoe.Position = previewBasePart.Position - Vector3.new(0, HumanoidRootPart.Size.Y * 1.45 - indicatorHeightOffset, 0)
 			local weld1 = Instance.new("WeldConstraint")
 			weld1.Part0 = fullaoe
 			weld1.Part1 = previewBasePart
@@ -3248,10 +3262,16 @@ player.PlayerLevel.Changed:Connect(refreshEquippedSlots)
 player.PlayerExp.Changed:Connect(UpdatePlayerLevelBar)
 updateWaveDisplays(info.Wave.Value)
 info.Wave.Changed:Connect(updateWaveDisplays)
+HideScoutToolbarsOnMobile()
 Upgrade:WaitForChild("Rightsection").Buttons.Upgrade.Btn.Activated:Connect(UpgradeFunc)
 Upgrade:WaitForChild("Rightsection").Buttons.Sell.Btn.Activated:Connect(SellFunc)
 Upgrade:WaitForChild("Rightsection").Buttons.Target.Btn.Activated:Connect(TargetFunc)
 bindPreviewSpectateButtons()
+Upgrade.DescendantAdded:Connect(function(descendant)
+	if descendant.Name == "TOOLBAR" and descendant:IsA("GuiObject") then
+		HideScoutToolbarsOnMobile()
+	end
+end)
 gui.DescendantAdded:Connect(function(descendant)
 	if descendant.Name == "Spectate" or descendant.Name == "PreviewFrame" or descendant.Name == "Preview" then
 		task.defer(bindPreviewSpectateButtons)
@@ -3360,59 +3380,89 @@ SpeedButton.Activated:Connect(function()
 		_G.Message(failReason, Color3.fromRGB(255, 0, 0))
 	end
 end)
-events.Client.StartGUI.OnClientEvent:Connect(function(Bool)
+local function resolveStartDifficultyLabel(modeValue, difficultyValue, isInfinity)
+	if type(difficultyValue) == "string" and difficultyValue ~= "" then
+		return difficultyValue
+	end
+
+	if isInfinity then
+		return "Hard"
+	end
+
+	if modeValue == 3 then
+		return "Hellfire"
+	elseif modeValue == 2 then
+		return "Hard"
+	end
+
+	return "Normal"
+end
+
+local function applyStartDifficultyStyle(modeTextLabel, difficultyLabel)
+	modeTextLabel.HardGradient.Enabled = false
+	modeTextLabel.ChallangeGradient.Enabled = false
+	modeTextLabel.NormalGradient.Enabled = false
+
+	if difficultyLabel == "Normal" then
+		modeTextLabel.NormalGradient.Enabled = true
+	elseif difficultyLabel == "Hard" then
+		modeTextLabel.HardGradient.Enabled = true
+	else
+		modeTextLabel.ChallangeGradient.Enabled = true
+	end
+end
+
+events.Client.StartGUI.OnClientEvent:Connect(function(Bool, payload)
 	local WorldValue = StoryModeStats.Worlds[info.World.Value]
-	if info.Raid.Value then
+	local levelValue = info.Level.Value
+	local modeValue = info.Mode.Value
+	local raidValue = info.Raid.Value
+	local infinityValue = info.Infinity.Value
+	local eventValue = info.Event.Value
+	local challengeNumber = info.ChallengeNumber.Value
+	local difficultyValue = info:FindFirstChild("Difficulty") and info.Difficulty.Value or ""
+
+	if type(payload) == "table" then
+		WorldValue = payload.WorldString ~= "" and payload.WorldString or (payload.World and StoryModeStats.Worlds[payload.World]) or WorldValue
+		levelValue = if type(payload.Level) == "number" then payload.Level else levelValue
+		modeValue = if type(payload.Mode) == "number" then payload.Mode else modeValue
+		raidValue = if type(payload.Raid) == "boolean" then payload.Raid else raidValue
+		infinityValue = if type(payload.Infinity) == "boolean" then payload.Infinity else infinityValue
+		eventValue = if type(payload.Event) == "boolean" then payload.Event else eventValue
+		challengeNumber = if type(payload.ChallengeNumber) == "number" then payload.ChallengeNumber else challengeNumber
+		difficultyValue = if type(payload.Difficulty) == "string" then payload.Difficulty else difficultyValue
+	elseif info.Raid.Value then
 		warn(info.WorldString.Value)
 		WorldValue = info.WorldString.Value
 	end
+
 	local Frame = script.Parent.Start.StartFrame
+	local resolvedDifficulty = resolveStartDifficultyLabel(modeValue, difficultyValue, infinityValue)
 	Frame.Visible = true
-	if info.ChallengeNumber.Value > 0 then
-		Frame.InformationFrame.ModeText.Text = ChallengeModule.Data[info.ChallengeNumber.Value].Name
-		Frame.InformationFrame.ModeText.ChallangeGradient.Enabled = true
-		Frame.InformationFrame.ModeText.HardGradient.Enabled = false
-		Frame.InformationFrame.ModeText.NormalGradient.Enabled = false
-	end
-	if game.Workspace.Info.Event.Value then
+	if challengeNumber > 0 then
+		Frame.InformationFrame.ModeText.Text = ChallengeModule.Data[challengeNumber].Name
+		applyStartDifficultyStyle(Frame.InformationFrame.ModeText, "Challenge")
+	elseif eventValue then
 		warn("Event Textttttt")
 		Frame.InformationFrame.ModeText.Text = "Event"
-		Frame.InformationFrame.ModeText.ChallangeGradient.Enabled = true
-		Frame.InformationFrame.ModeText.HardGradient.Enabled = false
-		Frame.InformationFrame.ModeText.NormalGradient.Enabled = false
+		applyStartDifficultyStyle(Frame.InformationFrame.ModeText, "Event")
 	else
-		if info.Infinity.Value then
-			Frame.InformationFrame.ModeText.Text = "Hard"
-			Frame.InformationFrame.ModeText.HardGradient.Enabled = true
-			Frame.InformationFrame.ModeText.ChallangeGradient.Enabled = false
-			Frame.InformationFrame.ModeText.NormalGradient.Enabled = false
-		else
-			if game.Workspace.Info.Mode.Value == 2 and not game.Workspace.Info.Event.Value then
-				Frame.InformationFrame.ModeText.Text = "Hard"
-				Frame.InformationFrame.ModeText.HardGradient.Enabled = true
-				Frame.InformationFrame.ModeText.ChallangeGradient.Enabled = false
-				Frame.InformationFrame.ModeText.NormalGradient.Enabled = false
-			else
-				Frame.InformationFrame.ModeText.Text = "Normal"
-				Frame.InformationFrame.ModeText.HardGradient.Enabled = false
-				Frame.InformationFrame.ModeText.ChallangeGradient.Enabled = false
-				Frame.InformationFrame.ModeText.NormalGradient.Enabled = true
-			end
-		end
+		Frame.InformationFrame.ModeText.Text = resolvedDifficulty
+		applyStartDifficultyStyle(Frame.InformationFrame.ModeText, resolvedDifficulty)
 	end
 	if WorldValue then
 		Frame.InformationFrame.StoryName.Text = WorldValue
 	else
 		Frame.InformationFrame.StoryName.Text = "Destroyed Kamino"
 	end
-	if info.Infinity.Value then
+	if infinityValue then
 		Frame.InformationFrame.ActName.Text = "Infinity Mode"
-	elseif info.Raid.Value then
-		Frame.InformationFrame.ActName.Text = "Act " .. info.Level.Value .. " - " .. RaidModeStats.LevelName[WorldValue][info.Level.Value]
-	elseif info.Event.Value then
+	elseif raidValue then
+		Frame.InformationFrame.ActName.Text = "Act " .. levelValue .. " - " .. RaidModeStats.LevelName[WorldValue][levelValue]
+	elseif eventValue then
 		Frame.InformationFrame.ActName.Text = "Best Of Luck In Defeating This Foe."
 	else
-		Frame.InformationFrame.ActName.Text = "Act " .. info.Level.Value .. " - " .. StoryModeStats.LevelName[WorldValue][info.Level.Value]
+		Frame.InformationFrame.ActName.Text = "Act " .. levelValue .. " - " .. StoryModeStats.LevelName[WorldValue][levelValue]
 	end
 	TweenService:Create(Frame.InformationFrame.StoryName, TweenInfo.new(0.25, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
 	TweenService:Create(Frame.InformationFrame.StoryName.UIStroke, TweenInfo.new(0.25, Enum.EasingStyle.Exponential), {Transparency = 0.18}):Play()

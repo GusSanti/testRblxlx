@@ -189,7 +189,17 @@ function round.StartGame(host)
 
 	task.wait(4)
 
-	Events.Client.StartGUI:FireAllClients(true)
+	Events.Client.StartGUI:FireAllClients(true, {
+		World = info.World.Value,
+		WorldString = info.WorldString.Value,
+		Level = info.Level.Value,
+		Mode = info.Mode.Value,
+		Difficulty = info.Difficulty.Value,
+		Raid = info.Raid.Value,
+		Infinity = info.Infinity.Value,
+		Event = info.Event.Value,
+		ChallengeNumber = info.ChallengeNumber.Value
+	})
 
 	task.wait(6.5)
 

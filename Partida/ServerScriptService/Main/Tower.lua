@@ -946,7 +946,7 @@ function tower.Spawn(player:Player, value:StringValue, cframe:CFrame, previous:M
 			SplashPositionPart.CanQuery = false
 			SplashPositionPart.Anchored = true
 			SplashPositionPart.Transparency = 1
-			local newCFrame = newTower.HumanoidRootPart.CFrame*CFrame.new(0,newTower.HumanoidRootPart.Size.Y*-1.45,-upgradeStats.Upgrades[1].AOESize*1.5)
+			local newCFrame = newTower.HumanoidRootPart.CFrame*CFrame.new(0,newTower.HumanoidRootPart.Size.Y*-1.45 + 0.25,-upgradeStats.Upgrades[1].AOESize*1.5)
 			SplashPositionPart.CFrame = CFrame.new(newCFrame.Position)
 			Instance.new("Attachment",SplashPositionPart)
 			SplashPositionPart.Parent = newTower
@@ -1256,7 +1256,7 @@ functions.Upgrade.OnServerInvoke = function (player : Player,tower : Model)
 				SplashPositionPart.CanQuery = false
 				SplashPositionPart.Anchored = true
 				SplashPositionPart.Transparency = 1
-				SplashPositionPart.CFrame = tower.HumanoidRootPart.CFrame*CFrame.new(0,tower.HumanoidRootPart.Size.Y*-1.45,-UnitStats[Config.Upgrades.Value].AOESize*1.5)
+				SplashPositionPart.CFrame = tower.HumanoidRootPart.CFrame*CFrame.new(0,tower.HumanoidRootPart.Size.Y*-1.45 + 0.25,-UnitStats[Config.Upgrades.Value].AOESize*1.5)
 				Instance.new("Attachment",SplashPositionPart)
 				SplashPositionPart.Parent = tower
 			end

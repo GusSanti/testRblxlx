@@ -588,9 +588,9 @@ module.DamageFunction = function(tower:Model,target:Model)
 	end
 
 	if targetRoot and towerRoot then
-		splashPositionPart.CFrame = CFrame.new(targetRoot.Position) * CFrame.new(0,towerRoot.Size.Y*-1.45,0)
+		splashPositionPart.CFrame = CFrame.new(targetRoot.Position) * CFrame.new(0,towerRoot.Size.Y*-1.45 + 0.25,0)
 	elseif towerRoot then
-		splashPositionPart.CFrame = towerRoot.CFrame*CFrame.new(0,towerRoot.Size.Y*-1.45,-getAOESize(config, upgradeStats)*1.5)
+		splashPositionPart.CFrame = towerRoot.CFrame*CFrame.new(0,towerRoot.Size.Y*-1.45 + 0.25,-getAOESize(config, upgradeStats)*1.5)
 	end
 
 	local delays = upgradeStats.MultiDamageDelays

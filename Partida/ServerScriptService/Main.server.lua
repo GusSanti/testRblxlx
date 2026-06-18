@@ -64,6 +64,28 @@ local DEFAULT =
 		Competitive = true
 	}
 
+local function resolveTeleportDifficulty(teleportData)
+	if type(teleportData) ~= "table" then
+		return "Normal"
+	end
+
+	if type(teleportData.Difficulty) == "string" and teleportData.Difficulty ~= "" then
+		return teleportData.Difficulty
+	end
+
+	if teleportData.Infinity or teleportData.Level == 0 then
+		return "Hard"
+	end
+
+	if teleportData.Mode == 3 then
+		return "Hellfire"
+	elseif teleportData.Mode == 2 then
+		return "Hard"
+	end
+
+	return "Normal"
+end
+
 local function handlePlayerJoin(player)
 	AnalyticsService:LogOnboardingFunnelStepEvent(
 		player,
@@ -94,13 +116,10 @@ local function handlePlayerJoin(player)
 		workspace.Info.Raid.Value = teleportData.Raid or false
 		workspace.Info.Infinity.Value = teleportData.Level == 0 or teleportData.Infinity
 		workspace.Info.Event.Value = teleportData.Event
+		workspace.Info.Difficulty.Value = resolveTeleportDifficulty(teleportData)
 
 		if StoryModeStats.Maps[teleportData.World] then
 			info.WorldString.Value = StoryModeStats.Maps[teleportData.World]
-		end
-
-		if teleportData.Mode == 2 then
-			workspace.Info.Difficulty.Value = 'Hard'
 		end
 
 		if teleportData.OwnerId then
