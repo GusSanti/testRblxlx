@@ -90,11 +90,13 @@ local function setAnimation(object, animName)
 	return animationTrack
 end
 
-local function playAnimation(object, animName, speed, isEnemy)
+local function playAnimation(object, animName, speed, isEnemy, loopedOverride)
 	local animationTrack = setAnimation(object, animName)
 
 	if animationTrack then
-		if isEnemy then
+		if loopedOverride ~= nil then
+			animationTrack.Looped = loopedOverride
+		elseif isEnemy then
 			animationTrack.Looped = true
 		end
 
@@ -104,6 +106,25 @@ local function playAnimation(object, animName, speed, isEnemy)
 		return animationTrack
 	else
 		return
+	end
+end
+
+local function stopTowerActionTracks(tower)
+	local humanoid = tower and tower:FindFirstChild("Humanoid")
+	if not humanoid then
+		return
+	end
+
+	local animator = humanoid:FindFirstChildOfClass("Animator")
+	if not animator then
+		return
+	end
+
+	for _, track in animator:GetPlayingAnimationTracks() do
+		local lowerName = string.lower(track.Name)
+		if lowerName ~= "idle" and lowerName ~= "walk" and lowerName ~= "run" then
+			track:Stop(0.05)
+		end
 	end
 end
 
@@ -127,11 +148,18 @@ else
 end
 
 workspace.Towers.ChildAdded:Connect(function(object)
-	playAnimation(object, "Idle")
+	playAnimation(object, "Idle", 1, false, true)
 end)		
 
 animateTowerEvent.OnClientEvent:Connect(function(tower, animName, target)
-	local animtrack = playAnimation(tower, animName, GameSpeed.Value)
+	if not tower or not tower.Parent or not animName then
+		return
+	end
+
+	-- Tower attack animations should fire once, then fall back to the idle track.
+	stopTowerActionTracks(tower)
+
+	local animtrack = playAnimation(tower, animName, GameSpeed.Value, false, false)
 	if animtrack then
 		if tower.Animations:FindFirstChild(animName):FindFirstChild("UnitAnimSpeed") then
 			animtrack:AdjustSpeed(tower.Animations[animName].UnitAnimSpeed.Value*GameSpeed.Value)
