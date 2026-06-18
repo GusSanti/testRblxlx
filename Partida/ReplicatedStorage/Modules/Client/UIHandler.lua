@@ -1,5 +1,6 @@
 --[Services]--
 local Players = game:GetService("Players")
+local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
 local UIHandler = {}
@@ -141,7 +142,12 @@ if game:GetService("RunService"):IsClient() then
 		end
 		
 		local Clone : Sound = Found:Clone() do
-			Clone.Parent = workspace
+			Clone:SetAttribute("AudioCategory", "UI")
+			local uiSoundGroup = SoundService:FindFirstChild("UI")
+			if uiSoundGroup and uiSoundGroup:IsA("SoundGroup") then
+				Clone.SoundGroup = uiSoundGroup
+			end
+			Clone.Parent = SoundService
 			Clone:Play()
 		end
 		

@@ -24,6 +24,19 @@ local RadiusMaximumOffset = 10
 local HeightOffset = 50
 local rocketSpeed = 70
 
+local function tagGameSounds(root)
+	local gameSoundGroup = SoundService:FindFirstChild("Game")
+
+	for _, descendant in root:GetDescendants() do
+		if descendant:IsA("Sound") then
+			descendant:SetAttribute("AudioCategory", "Game")
+			if gameSoundGroup and gameSoundGroup:IsA("SoundGroup") then
+				descendant.SoundGroup = gameSoundGroup
+			end
+		end
+	end
+end
+
 local function getMag(pos1, pos2)
 	return (pos1 - pos2).Magnitude
 end
@@ -32,6 +45,7 @@ end
 function module.deployPod(pos: Vector3, sourcePlayer, damage)
 	print('Deploying pod')
 	local Pod = Assets.Pod:Clone() :: Model
+	tagGameSounds(Pod)
 
 	local offsetVector = Vector3.new(
 		module.randomOffset(RadiusMinimumOffset, RadiusMaximumOffset),
