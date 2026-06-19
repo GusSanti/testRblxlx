@@ -5,6 +5,7 @@ local animTrack = animationController:LoadAnimation(doorOpenAnim)
 
 -- Optionally widen the trigger's detection area.
 local trigger = door:WaitForChild("ProximityTrigger")
+trigger.CanCollide = false
 
 local doorOpened = false
 

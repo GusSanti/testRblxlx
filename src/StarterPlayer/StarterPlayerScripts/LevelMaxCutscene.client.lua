@@ -5,6 +5,7 @@ local TweenService: TweenService = game:GetService("TweenService")
 local RunService: RunService = game:GetService("RunService")
 local StarterGui: StarterGui = game:GetService("StarterGui")
 local ContentProvider: ContentProvider = game:GetService("ContentProvider")
+local SoundService: SoundService = game:GetService("SoundService")
 
 ------------------//CONSTANTS
 local FADE_TIME: number = 0.45
@@ -291,6 +292,11 @@ local function preload_cutscene(towerName: string): ()
 
 	local foundSound = find_by_name_in_clones(cache.Clones, settings.SoundName or "Sound")
 	if foundSound and foundSound:IsA("Sound") then
+		foundSound:SetAttribute("AudioCategory", "Game")
+		local gameSoundGroup = SoundService:FindFirstChild("Game")
+		if gameSoundGroup and gameSoundGroup:IsA("SoundGroup") then
+			foundSound.SoundGroup = gameSoundGroup
+		end
 		cache.Sound = foundSound
 	end
 

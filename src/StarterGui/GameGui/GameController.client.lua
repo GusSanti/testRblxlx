@@ -409,6 +409,66 @@ function getSlotLimitText(slot)
 	return slot:FindFirstChild("LimitText", true)
 end
 
+function findFirstChildByNames(parent, names, recursive)
+	if not parent then
+		return nil
+	end
+
+	for _, name in ipairs(names) do
+		local child = parent:FindFirstChild(name, recursive)
+		if child then
+			return child
+		end
+	end
+
+	return nil
+end
+
+function getScoutLeftSection()
+	return findFirstChildByNames(Upgrade, {"LeftSection", "Leftsection"})
+end
+
+function getScoutRightSection()
+	return findFirstChildByNames(Upgrade, {"RightSection", "Rightsection"})
+end
+
+function getScoutButtonsSection()
+	local rightSection = getScoutRightSection()
+	return rightSection and rightSection:FindFirstChild("Buttons")
+end
+
+function getScoutProfileSection()
+	local rightSection = getScoutRightSection()
+	return rightSection and rightSection:FindFirstChild("Profile")
+end
+
+function findViewportFrame(container)
+	if not container then
+		return nil
+	end
+
+	local viewport = findFirstChildByNames(container, {"ViewPortFrame", "ViewportFrame"})
+	if viewport and viewport:IsA("ViewportFrame") then
+		return viewport
+	end
+
+	viewport = findFirstChildByNames(container, {"ViewPortFrame", "ViewportFrame"}, true)
+	if viewport and viewport:IsA("ViewportFrame") then
+		return viewport
+	end
+
+	return nil
+end
+
+function getEndScreenLeftInfo(screen)
+	local content = screen and screen:FindFirstChild("Main") and screen.Main:FindFirstChild("Content")
+	if not content then
+		return nil
+	end
+
+	return findFirstChildByNames(content, {"LeftInfo", "Leftinfo"})
+end
+
 function getUnitRarity(unit)
 	local rarity = nil
 	for _, v in ReplicatedStorage.Towers:GetChildren() do
@@ -616,7 +676,18 @@ function createTowerPreviewSource(tower)
 end
 
 function getTowerInfoPreviewContainer(profile)
-	local leftSection = Upgrade and Upgrade:FindFirstChild("Leftsection")
+	if profile then
+		local placeholder = findFirstChildByNames(profile, {"Placeholder", "PlaceHolder"})
+		local profileViewport = findViewportFrame(placeholder or profile)
+		if profileViewport then
+			return profileViewport
+		end
+		if placeholder then
+			return placeholder
+		end
+	end
+
+	local leftSection = getScoutLeftSection()
 	local previewFrame = leftSection and leftSection:FindFirstChild("PreviewFrame")
 	local previewViewport = previewFrame and previewFrame:FindFirstChild("Preview")
 	if previewViewport then
@@ -627,9 +698,7 @@ function getTowerInfoPreviewContainer(profile)
 		return nil
 	end
 
-	return profile:FindFirstChild("Placeholder")
-		or profile:FindFirstChild("PlaceHolder")
-		or profile:FindFirstChild("ViewportFrame")
+	return findViewportFrame(profile)
 end
 
 function populateTowerPreviewContainer(container, tower)
@@ -734,7 +803,7 @@ function clearSlotDisplay(slot, slotIndex)
 	if closedTemplate then
 		local clone = setupSlotTemplateClone(closedTemplate, slot, SLOT_EMPTY_TEMPLATE_NAME)
 		local profile = clone and clone:FindFirstChild("Profile")
-		local viewportFrame = profile and profile:FindFirstChild("ViewportFrame")
+		local viewportFrame = findViewportFrame(profile)
 		if viewportFrame and viewportFrame:IsA("ViewportFrame") then
 			populateEmptySlotViewport(viewportFrame)
 		end
@@ -781,7 +850,7 @@ function fillSlotDisplay(slot, tower)
 
 	local profile = visualRoot:FindFirstChild("Profile")
 	if profile then
-		local viewportFrame = profile:FindFirstChild("ViewportFrame")
+		local viewportFrame = findViewportFrame(profile)
 		if viewportFrame and viewportFrame:IsA("ViewportFrame") then
 			populateSlotViewport(viewportFrame, tower)
 		else
@@ -950,9 +1019,10 @@ function UpdatePlayerLevelBar()
 	LevelNumber.Text = `Level {playerLevelValue} [{playerExpValue}/{requireExp}]`
 end
 function updateAbilityStatus()
-	local Rightsection = Upgrade:FindFirstChild("Rightsection")
-	if Rightsection and Rightsection.Buttons:FindFirstChild("Ability") then
-		Rightsection.Buttons.Ability.DisplayBind.TextLabel.Text = AbilityStatus.Value
+	local rightSection = getScoutRightSection()
+	local buttons = rightSection and rightSection:FindFirstChild("Buttons")
+	if buttons and buttons:FindFirstChild("Ability") then
+		buttons.Ability.DisplayBind.TextLabel.Text = AbilityStatus.Value
 	end
 end
 function MouseRaycast(model)
@@ -1563,8 +1633,12 @@ toggleTowerInfo = function()
 			end
 		end
 		Click:Play()
-		local Rightsection = Upgrade:WaitForChild("Rightsection")
-		local Leftsection = Upgrade:WaitForChild("Leftsection")
+		local Rightsection = getScoutRightSection()
+		local Leftsection = getScoutLeftSection()
+		if not Rightsection or not Leftsection then
+			warn("Scout UI sem secoes esperadas:", Upgrade:GetFullName())
+			return
+		end
 		local Middle = Leftsection:WaitForChild("Middle")
 		local Buttons = Rightsection:WaitForChild("Buttons")
 		local Profile = Rightsection:WaitForChild("Profile")
@@ -1943,7 +2017,7 @@ function resolveSpectateButtons()
 		})
 	end
 
-	local leftSection = Upgrade and Upgrade:FindFirstChild("Leftsection")
+	local leftSection = getScoutLeftSection()
 	local previewFrame = leftSection and leftSection:FindFirstChild("PreviewFrame")
 	addButton(previewFrame and previewFrame:FindFirstChild("Spectate"), "NewUI.Scout.Leftsection.PreviewFrame.Spectate")
 
@@ -2142,26 +2216,69 @@ do
 		end
 		return "Destroyed Kamino"
 	end
-	function getEndScreenActText()
-		if info.Infinity.Value then
-			return "Infinity / Hard"
+	function normalizeEndScreenDifficultyLabel(label)
+		if type(label) ~= "string" then
+			return nil
 		end
-		if info.Raid.Value then
-			return "Act " .. info.Level.Value .. " / Raid"
+
+		local trimmed = label:match("^%s*(.-)%s*$")
+		if not trimmed or trimmed == "" then
+			return nil
 		end
+
+		local lower = string.lower(trimmed)
+		if lower == "hellfire" or lower == "hell fire" then
+			return "Hell Fire"
+		elseif lower == "hard" then
+			return "Hard"
+		elseif lower == "normal" then
+			return "Normal"
+		elseif lower == "raid" then
+			return "Raid"
+		elseif lower == "event" then
+			return "Event"
+		end
+
+		return trimmed
+	end
+	function resolveEndScreenDifficultyLabel()
+		local difficultyValue = info:FindFirstChild("Difficulty") and info.Difficulty.Value or ""
+		local normalizedDifficulty = normalizeEndScreenDifficultyLabel(difficultyValue)
+		if normalizedDifficulty then
+			return normalizedDifficulty
+		end
+
+		if info.ChallengeNumber.Value > 0 then
+			local challengeData = ChallengeModule.Data[info.ChallengeNumber.Value]
+			return challengeData and challengeData.Name or "Challenge"
+		end
+
 		if info.Event.Value then
 			return "Event"
 		end
-		if info.ChallengeNumber.Value > 0 then
-			local challengeData = ChallengeModule.Data[info.ChallengeNumber.Value]
-			local challengeName = if challengeData then challengeData.Name else "Challenge"
-			return "Act " .. info.Level.Value .. " / " .. challengeName
+
+		if info.Raid.Value then
+			return "Raid"
 		end
-		local modeName = "Normal"
-		if info.Mode.Value == 2 then
-			modeName = "Hard"
+
+		if info.Infinity.Value then
+			return "Hard"
 		end
-		return "Act " .. info.Level.Value .. " / " .. modeName
+
+		if info.Mode.Value == 3 then
+			return "Hell Fire"
+		elseif info.Mode.Value == 2 then
+			return "Hard"
+		end
+
+		return "Normal"
+	end
+	function getEndScreenActText()
+		if info.Infinity.Value then
+			return "Infinity / " .. resolveEndScreenDifficultyLabel()
+		end
+
+		return "Act " .. info.Level.Value .. " / " .. resolveEndScreenDifficultyLabel()
 	end
 	function updateWaveDisplays(currentWave)
 		local waveText = "Wave " .. tostring(currentWave)
@@ -2950,7 +3067,7 @@ do
 		disconnectEndScreenConnections()
 		hideAllEndScreens()
 		activeEndScreen = screen
-		local leftInfo = screen.Main.Content:FindFirstChild("Leftinfo")
+		local leftInfo = getEndScreenLeftInfo(screen)
 		if leftInfo then
 			if leftInfo:FindFirstChild("Title") then
 				leftInfo.Title.Text = getEndScreenTitle()
@@ -3263,9 +3380,14 @@ player.PlayerExp.Changed:Connect(UpdatePlayerLevelBar)
 updateWaveDisplays(info.Wave.Value)
 info.Wave.Changed:Connect(updateWaveDisplays)
 HideScoutToolbarsOnMobile()
-Upgrade:WaitForChild("Rightsection").Buttons.Upgrade.Btn.Activated:Connect(UpgradeFunc)
-Upgrade:WaitForChild("Rightsection").Buttons.Sell.Btn.Activated:Connect(SellFunc)
-Upgrade:WaitForChild("Rightsection").Buttons.Target.Btn.Activated:Connect(TargetFunc)
+local scoutButtons = getScoutButtonsSection()
+if scoutButtons then
+	scoutButtons.Upgrade.Btn.Activated:Connect(UpgradeFunc)
+	scoutButtons.Sell.Btn.Activated:Connect(SellFunc)
+	scoutButtons.Target.Btn.Activated:Connect(TargetFunc)
+else
+	warn("Scout UI sem Buttons:", Upgrade:GetFullName())
+end
 bindPreviewSpectateButtons()
 Upgrade.DescendantAdded:Connect(function(descendant)
 	if descendant.Name == "TOOLBAR" and descendant:IsA("GuiObject") then

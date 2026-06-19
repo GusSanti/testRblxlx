@@ -167,7 +167,7 @@ function ViewModule.EvolveHatch(Info) --UnitInfo, PlayerUnit, _resumeCallback
 		local Rand7 = UnitInfo;
 		if Unit then
 			local UnitModel = Unit:Clone()
-			UiHandler.PlaySound("Evo")
+			UiHandler.PlaySound("Evo", "Game")
 			if Trait then
 				TraitsModule.AddVisualAura(UnitModel, Trait)
 			end

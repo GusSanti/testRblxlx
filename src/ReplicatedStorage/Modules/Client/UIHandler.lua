@@ -135,17 +135,18 @@ if game:GetService("RunService"):IsClient() then
 		end)
 	end
 
-	function UIHandler.PlaySound(Name  : string)
+	function UIHandler.PlaySound(Name  : string, category : string?)
 		local Found = script.Sounds:FindFirstChild(Name)
 		if not Found then
 			return
 		end
 
+		local resolvedCategory = if category == "Game" or category == "Music" then category else "UI"
 		local Clone : Sound = Found:Clone() do
-			Clone:SetAttribute("AudioCategory", "UI")
-			local uiSoundGroup = SoundService:FindFirstChild("UI")
-			if uiSoundGroup and uiSoundGroup:IsA("SoundGroup") then
-				Clone.SoundGroup = uiSoundGroup
+			Clone:SetAttribute("AudioCategory", resolvedCategory)
+			local soundGroup = SoundService:FindFirstChild(resolvedCategory)
+			if soundGroup and soundGroup:IsA("SoundGroup") then
+				Clone.SoundGroup = soundGroup
 			end
 			Clone.Parent = SoundService
 			Clone:Play()

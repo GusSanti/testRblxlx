@@ -2,11 +2,12 @@ local animationController = script.Parent.AnimationController
 local animObject = script.Parent.ShipAnimation
 local animTrack = animationController:LoadAnimation(animObject)
 
--- Function to set transparency for parts "1" and "2"
+-- Keep collision in sync with visibility so hidden ship parts do not block players.
 local function setPartsTransparency(transparencyValue)
     for _, descendant in ipairs(script.Parent:GetDescendants()) do
         if descendant:IsA("BasePart") and (descendant.Name == "1" or descendant.Name == "2") then
             descendant.Transparency = transparencyValue
+            descendant.CanCollide = transparencyValue < 1
         end
     end
 end
