@@ -60,9 +60,41 @@ local DEFAULT =
 		World = 1,
 		Level = 1,
 		Mode = 0, 
-		Versus = true, 
-		Competitive = true
+		Raid = false,
+		Infinity = false,
+		Event = false,
+		Versus = false,
+		Competitive = false
 	}
+
+local function normalizeTeleportData(rawTeleportData, player)
+	if type(rawTeleportData) ~= "table" then
+		local fallback = table.clone(DEFAULT)
+		fallback.OwnerId = player.UserId
+		return fallback
+	end
+
+	local teleportData = table.clone(DEFAULT)
+	for key, value in pairs(rawTeleportData) do
+		teleportData[key] = value
+	end
+
+	if teleportData.Infinity == nil and teleportData.Infinite ~= nil then
+		teleportData.Infinity = teleportData.Infinite
+	end
+
+	teleportData.World = if type(teleportData.World) == "number" then teleportData.World else DEFAULT.World
+	teleportData.Level = if type(teleportData.Level) == "number" then teleportData.Level else DEFAULT.Level
+	teleportData.Mode = if type(teleportData.Mode) == "number" then teleportData.Mode else DEFAULT.Mode
+	teleportData.Raid = teleportData.Raid == true
+	teleportData.Infinity = teleportData.Infinity == true
+	teleportData.Event = teleportData.Event == true
+	teleportData.Versus = teleportData.Versus == true
+	teleportData.Competitive = teleportData.Competitive == true
+	teleportData.OwnerId = if type(teleportData.OwnerId) == "number" then teleportData.OwnerId else player.UserId
+
+	return teleportData
+end
 
 local function resolveTeleportDifficulty(teleportData)
 	if type(teleportData) ~= "table" then
@@ -92,11 +124,7 @@ local function handlePlayerJoin(player)
 		3,
 		"loaded into story mode"
 	)
-	local teleportData = player:GetJoinData()["TeleportData"] or DEFAULT
-
-	if not teleportData.OwnerId then
-		teleportData.OwnerId = player.UserId
-	end
+	local teleportData = normalizeTeleportData(player:GetJoinData()["TeleportData"], player)
 
 	if RunService:IsStudio() then teleportData = nil end
 
@@ -113,7 +141,7 @@ local function handlePlayerJoin(player)
 		workspace.Info.World.Value = teleportData.World
 		workspace.Info.Level.Value = teleportData.Level
 		workspace.Info.Mode.Value = teleportData.Mode
-		workspace.Info.Raid.Value = teleportData.Raid or false
+		workspace.Info.Raid.Value = teleportData.Raid
 		workspace.Info.Infinity.Value = teleportData.Level == 0 or teleportData.Infinity
 		workspace.Info.Event.Value = teleportData.Event
 		workspace.Info.Difficulty.Value = resolveTeleportDifficulty(teleportData)
@@ -126,19 +154,16 @@ local function handlePlayerJoin(player)
 			workspace.Info.OwnerId.Value = teleportData.OwnerId
 		end
 
-		if teleportData.Versus then
-			info.Versus.Value = teleportData.Versus
+		info.Versus.Value = teleportData.Versus
+		info.Competitive.Value = teleportData.Competitive
 
+		if teleportData.Versus or teleportData.Competitive then
 			if info.WorldString.Value == '' then
 				local randomMap = ServerStorage.CompetitiveMaps:GetChildren()
 				local selectedMap = randomMap[math.random(#randomMap)]
 
 				info.WorldString.Value = selectedMap.Name
 			end
-		end
-
-		if teleportData.Competitive then
-			info.Competitive.Value = teleportData.Competitive
 		end
 
 
@@ -218,4 +243,3 @@ Players.PlayerAdded:Connect(handlePlayerJoin)
 --end)
 
 --main()
-

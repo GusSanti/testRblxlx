@@ -9,6 +9,7 @@ local UserInputService = game:GetService("UserInputService")
 local CollectionService = game:GetService("CollectionService")
 local SoundService = game:GetService("SoundService")
 local Debris = game:GetService("Debris")
+local GuiService = game:GetService("GuiService")
 -- CONSTANTS
 local Shortner = require(ReplicatedStorage.Modules.NumberFormat)
 local itemModule = require(ReplicatedStorage.ItemStats)
@@ -116,10 +117,16 @@ local spectateStopConnection = nil :: RBXScriptConnection?
 local spectateTowerAncestryConnection = nil :: RBXScriptConnection?
 local spectateVisualState = {}
 local PREVIEW_DEBUG_ENABLED = true
+local slotUiReady = false
+local slotUiRequestedVisible = true
 -- FUNCTIONS
 EmitModule.init()
 SkipUI.AnchorPoint = Vector2.new(0.5, 0.5)
 SkipUI.Position = SKIP_CENTER_POSITION
+
+workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+	camera = workspace.CurrentCamera
+end)
 
 function previewDebug(...)
 	if not PREVIEW_DEBUG_ENABLED then
@@ -194,6 +201,60 @@ function resolveStopButton()
 
 	return StopButton
 end
+
+function getCurrentCamera()
+	camera = workspace.CurrentCamera or camera
+	return camera
+end
+
+function applyBottomSlotVisibility()
+	IngameHud.Bottom.Slot.Visible = slotUiReady and slotUiRequestedVisible and spectatingTower == nil
+end
+
+function requestBottomSlotVisibility(state)
+	slotUiRequestedVisible = state
+	applyBottomSlotVisibility()
+end
+
+function getOwnedTowerLoadSignature()
+	local signatureParts = {}
+	for _, tower in ipairs(player.OwnedTowers:GetChildren()) do
+		signatureParts[#signatureParts + 1] = table.concat({
+			tower.Name,
+			tostring(tower:GetAttribute("Equipped")),
+			tostring(tower:GetAttribute("EquippedSlot")),
+			tostring(tower:GetAttribute("Level")),
+			tostring(tower:GetAttribute("Trait")),
+			tostring(tower:GetAttribute("Shiny"))
+		}, "|")
+	end
+
+	table.sort(signatureParts)
+	return table.concat(signatureParts, "||")
+end
+
+function waitForOwnedTowersToSettle(timeoutSeconds, settleSeconds)
+	local deadline = os.clock() + (timeoutSeconds or 5)
+	local settledFor = settleSeconds or 0.15
+	local lastSignature = nil
+	local stableSince = os.clock()
+
+	while os.clock() < deadline do
+		local signature = getOwnedTowerLoadSignature()
+		if signature ~= lastSignature then
+			lastSignature = signature
+			stableSince = os.clock()
+		elseif os.clock() - stableSince >= settledFor then
+			return true
+		end
+
+		task.wait(0.05)
+	end
+
+	return false
+end
+
+applyBottomSlotVisibility()
 
 function getFlatDistance(pos1, pos2)
 	local delta = pos1 - pos2
@@ -995,7 +1056,7 @@ function HideScoutToolbarsOnMobile()
 end
 function EndScreenGUIDisable(value)
 	IngameHud.Bottom.AmountMoney.Visible = value
-	IngameHud.Bottom.Slot.Visible = value
+	requestBottomSlotVisibility(value)
 	if info.Versus.Value then
 		local vh = IngameHud.Top:FindFirstChild("VersusHealth")
 		if vh then
@@ -1026,10 +1087,16 @@ function updateAbilityStatus()
 	end
 end
 function MouseRaycast(model)
-	local mousePosition = UserInputService:GetMouseLocation()
-	local mouseRay = camera:ViewportPointToRay(mousePosition.X, mousePosition.Y)
+	local currentCamera = getCurrentCamera()
+	if not currentCamera then
+		return nil
+	end
+
+	local guiInset = GuiService:GetGuiInset()
+	local mousePosition = UserInputService:GetMouseLocation() - guiInset
+	local mouseRay = currentCamera:ViewportPointToRay(mousePosition.X, mousePosition.Y)
 	local raycastParams = RaycastParams.new()
-	local blacklist = camera:GetChildren()
+	local blacklist = currentCamera:GetChildren()
 	table.insert(blacklist, model)
 	table.insert(blacklist, player.Character)
 	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -1044,6 +1111,48 @@ function MouseRaycast(model)
 		raycastResult = workspace:Raycast(mouseRay.Origin, mouseRay.Direction * 1000, raycastParams)
 	end
 	return raycastResult
+end
+
+function hasPlacementSurfaceForPlayer()
+	if (info.Versus.Value or info.Competitive.Value) and not player.Team then
+		return false
+	end
+
+	local mapRoot = workspace:FindFirstChild("Map")
+	if not mapRoot then
+		return false
+	end
+
+	for _, descendant in ipairs(mapRoot:GetDescendants()) do
+		if not descendant:IsA("BasePart") then
+			continue
+		end
+
+		local parent = descendant.Parent
+		local parentName = parent and parent.Name
+		if parentName == "GroundPlace" or parentName == "AirPlace" then
+			return true
+		end
+
+		if player.Team and parentName == player.Team.Name .. "GroundPlace" then
+			return true
+		end
+	end
+
+	return false
+end
+
+function waitForPlacementSurface(timeoutSeconds)
+	local deadline = os.clock() + (timeoutSeconds or 3)
+	while os.clock() < deadline do
+		if hasPlacementSurfaceForPlayer() and getCurrentCamera() then
+			return true
+		end
+
+		task.wait(0.1)
+	end
+
+	return hasPlacementSurfaceForPlayer()
 end
 
 function getDirectChildUnder(parent: Instance?, instance: Instance?)
@@ -1399,6 +1508,8 @@ AddPlaceholderTower = function(name, unit)
 	local towerExists = GetUnitModel[name]
 	if towerExists then
 		RemovePlaceholderTower()
+		local placementSurfaceReady = waitForPlacementSurface(3)
+		PlacementDebug.log("AddPlaceholderTower:placement-surface-ready", "name=", name, "ready=", placementSurfaceReady, "team=", player.Team and player.Team.Name or "nil")
 		towerToSpawn = towerExists:Clone()
 		local counter = 0
 		local Limit = if not info.Versus.Value and (unit:GetAttribute("Trait") == "Cosmic Crusader" or unit:GetAttribute("Trait") == "Waders Will") then 1 else upgradesModule[towerToSpawn.Name]["Place Limit"]
@@ -1528,7 +1639,7 @@ function stopSpectating()
 		stopButton.Visible = false
 	end
 	IngameHud.Bottom.AmountMoney.Visible = true
-	IngameHud.Bottom.Slot.Visible = true
+	requestBottomSlotVisibility(true)
 	Upgrade.Visible = selectedTower ~= nil
 	restoreDefaultCameraSubject()
 end
@@ -1563,7 +1674,7 @@ function startSpectating(tower)
 
 	IngameHud.Bottom.AmountMoney.Visible = false
 	Upgrade.Visible = false
-	IngameHud.Bottom.Slot.Visible = false
+	requestBottomSlotVisibility(false)
 	local stopButton = resolveStopButton()
 	if stopButton then
 		stopButton.Visible = true
@@ -3358,20 +3469,25 @@ function LoadGui()
 end
 -- INIT
 repeat task.wait() until player:FindFirstChild("DataLoaded")
+local ownedTowersFolder = player:WaitForChild("OwnedTowers")
+requestBottomSlotVisibility(false)
 bindPersistentEndScreenClose(FailedScreen)
 bindPersistentEndScreenClose(VictoryScreen)
-for _, ownedTower in player.OwnedTowers:GetChildren() do
+for _, ownedTower in ownedTowersFolder:GetChildren() do
 	watchOwnedTower(ownedTower)
 end
-player.OwnedTowers.ChildAdded:Connect(function(ownedTower)
+ownedTowersFolder.ChildAdded:Connect(function(ownedTower)
 	watchOwnedTower(ownedTower)
 	refreshEquippedSlots()
 end)
-player.OwnedTowers.ChildRemoved:Connect(function(ownedTower)
+ownedTowersFolder.ChildRemoved:Connect(function(ownedTower)
 	disconnectOwnedTowerConnections(ownedTower)
 	refreshEquippedSlots()
 end)
+waitForOwnedTowersToSettle(5, 0.2)
 refreshEquippedSlots()
+slotUiReady = true
+requestBottomSlotVisibility(true)
 updateAbilityStatus()
 AbilityStatus.Changed:Connect(updateAbilityStatus)
 player.PlayerLevel.Changed:Connect(UpdatePlayerLevelBar)
@@ -3604,6 +3720,8 @@ events.Client.StartGUI.OnClientEvent:Connect(function(Bool, payload)
 	TweenService:Create(Frame.InformationFrame.ActName.UIStroke, TweenInfo.new(0.85, Enum.EasingStyle.Linear), {Transparency = 1}):Play()
 	TweenService:Create(Frame.InformationFrame.ModeText, TweenInfo.new(0.85, Enum.EasingStyle.Linear), {TextTransparency = 1}):Play()
 	TweenService:Create(Frame.InformationFrame.ModeText.UIStroke, TweenInfo.new(0.85, Enum.EasingStyle.Linear), {Transparency = 1}):Play()
+	task.wait(0.9)
+	Frame.Visible = false
 end)
 local arrowCoroutine = coroutine.create(function()
 	local mapFolder = workspace:WaitForChild("Map")

@@ -41,7 +41,17 @@ local function main()
 			placeId = PlaceData.Game
 			worldReservePlace = worldReservePlace or TeleportService:ReserveServer(placeId)
 			options.ReservedServerAccessCode = worldReservePlace
-	        options:SetTeleportData({World = workspace.Info.World.Value,Level = workspace.Info.Level.Value,Mode = workspace.Info.Mode.Value, Raid = workspace.Info.Raid.Value,OwnerId = workspace.Info.OwnerId.Value, Infinite = workspace.Info.Infinity.Value, Event = workspace.Info.Event.Value})
+	        options:SetTeleportData({
+				World = workspace.Info.World.Value,
+				Level = workspace.Info.Level.Value,
+				Mode = workspace.Info.Mode.Value,
+				Raid = workspace.Info.Raid.Value,
+				OwnerId = workspace.Info.OwnerId.Value,
+				Infinity = workspace.Info.Infinity.Value,
+				Event = workspace.Info.Event.Value,
+				Versus = workspace.Info.Versus.Value,
+				Competitive = workspace.Info.Competitive.Value
+			})
 			
 			if workspace.Info.ChallengeNumber.Value > 0 then
 				options:SetTeleportData({
