@@ -27,21 +27,21 @@ local function main()
 				["Money"] = player.Money.Value
 			}) 
 			events.Client.Teleporting:FireClient(player, "Lobby")
-	    elseif decision == "Replay" then
-	        if locked then return end
+		elseif decision == "Replay" then
+			if locked then return end
 			--if workspace.Info.ChallengeNumber.Value > 0 then return end
 			locked = true
-			
-			print('REPLAYINGG')
-			
-			
-			
 
-			
+			print('REPLAYINGG')
+
+
+
+
+
 			placeId = PlaceData.Game
 			worldReservePlace = worldReservePlace or TeleportService:ReserveServer(placeId)
 			options.ReservedServerAccessCode = worldReservePlace
-	        options:SetTeleportData({
+			options:SetTeleportData({
 				World = workspace.Info.World.Value,
 				Level = workspace.Info.Level.Value,
 				Mode = workspace.Info.Mode.Value,
@@ -52,7 +52,7 @@ local function main()
 				Versus = workspace.Info.Versus.Value,
 				Competitive = workspace.Info.Competitive.Value
 			})
-			
+
 			if workspace.Info.ChallengeNumber.Value > 0 then
 				options:SetTeleportData({
 					World = workspace.Info.World.Value,
@@ -80,14 +80,14 @@ local function main()
 					)
 				end
 			end
-			
-	        for i, v in pairs(game.Players:GetChildren()) do
-	            events.Client.Teleporting:FireClient(v, "Game", workspace.Info.World.Value, workspace.Info.Level.Value, workspace.Info.Mode.Value)
-	        end
-			
-	    elseif decision == "Next" and workspace.Info.Message.Value == "VICTORY" then
-	        if locked then return end
-	        locked = true
+
+			for i, v in pairs(game.Players:GetChildren()) do
+				events.Client.Teleporting:FireClient(v, "Game", workspace.Info.World.Value, workspace.Info.Level.Value, workspace.Info.Mode.Value)
+			end
+
+		elseif decision == "Next" and workspace.Info.Message.Value == "VICTORY" then
+			if locked then return end
+			locked = true
 			local isNextPlaceValid
 			local currentWorldName = StoryModeStats.Worlds[workspace.Info.World.Value]
 			local currentWorldLevels = currentWorldName and StoryModeStats.LevelName[currentWorldName]
@@ -103,12 +103,12 @@ local function main()
 					nextLevel = 1 
 				end
 			end
-			
+
 			if nextWorld and nextLevel then
 				placeId = PlaceData.Game
 				worldReservePlace = worldReservePlace or TeleportService:ReserveServer(placeId)
 				options.ReservedServerAccessCode = worldReservePlace
-	            options:SetTeleportData({World = nextWorld,Level = nextLevel,Mode = workspace.Info.Mode.Value, Raid = workspace.Info.Raid.Value, OwnerId = workspace.Info.OwnerId.Value})
+				options:SetTeleportData({World = nextWorld,Level = nextLevel,Mode = workspace.Info.Mode.Value, Raid = workspace.Info.Raid.Value, OwnerId = workspace.Info.OwnerId.Value})
 			else
 				options:SetTeleportData({
 					["Money"] = player.Money.Value
@@ -116,15 +116,15 @@ local function main()
 			end
 			events.Client.Teleporting:FireClient(player, "Game", nextWorld, nextLevel, workspace.Info.Mode.Value, workspace.Info.Raid.Value)
 		end
-		
-	    task.wait(3)
-	    if locked then
-	        SafeTeleport(placeId, game.Players:GetChildren(), options)
-	    else
-	        SafeTeleport(placeId, {player}, options)
-	    end
-	    
-		
+
+		task.wait(3)
+		if locked then
+			SafeTeleport(placeId, game.Players:GetChildren(), options)
+		else
+			SafeTeleport(placeId, {player}, options)
+		end
+
+
 		print("Finished teleport")
 		----------------------------
 	end

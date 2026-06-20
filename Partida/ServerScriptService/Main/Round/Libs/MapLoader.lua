@@ -178,7 +178,7 @@ function module.loadMainMap()
 	Variables.votedMap = nil
 	if info.TestingMode.Value and game:GetService('RunService'):IsStudio() then
 		--votedMap = "TestMap"
-		Variables.votedMap = 'Bespin' 
+		Variables.votedMap = 'Naboo Planet' 
 		for i, player in Players:GetPlayers() do
 			player:WaitForChild("Money").Value += 5000000
 		end

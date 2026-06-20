@@ -458,9 +458,9 @@ function ViewModule.EvolveHatch(Info) --UnitInfo, PlayerUnit, _resumeCallback
 	task.delay(WaitTime,function()
 		MainParticle.Parent = workspace.Ignore;
 	end)
-	
+
 	local EvolveEmit = nil
-	
+
 	for _, Particle in MainParticle:GetDescendants() do
 		if Particle:IsA("ParticleEmitter") then
 			if Rarity ~= nil then
@@ -486,7 +486,7 @@ function ViewModule.EvolveHatch(Info) --UnitInfo, PlayerUnit, _resumeCallback
 		VFXHelper.EmitWithDelay(EvolveEmit)
 		local originalCameraCFrame = CurrentCamera.CFrame
 		local OCSLOCK = os.clock();
-		
+
 		while LoopTrue2 do
 			FinalTimer = os.clock() - WaitTimer
 			for Index, PartThing in Rand4 do
@@ -595,9 +595,9 @@ function ViewModule.Hatch(Info) --UnitInfo, PlayerUnit, _resumeCallback
 	HatchUi.Parent = 	game.Players.LocalPlayer.PlayerGui
 
 	-- CLOSE ALL OF THE UI HERE --Knit.Get("Module", "GuiUtil"):CloseAllWindows(" ", true)
-	
+
 	UiHandler.DisableAllButtons()
-	
+
 	game.Players.LocalPlayer.CameraMinZoomDistance = 10;
 	--if game.Lighting.UIBlur.Size > 0 then
 	--	TweenService:Create(game.Lighting.UIBlur, TweenInfo.new(.3), {Size = 4}):Play()
