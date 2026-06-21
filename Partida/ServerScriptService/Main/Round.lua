@@ -83,6 +83,40 @@ local function didMainBaseFall()
 	return humanoid and humanoid.Health <= 0
 end
 
+local function getTutorialState(player)
+	return {
+		modeCompleted = player:FindFirstChild("TutorialModeCompleted"),
+		win = player:FindFirstChild("TutorialWin"),
+		completed = player:FindFirstChild("TutorialCompleted"),
+	}
+end
+
+local function isTutorialArenaInProgress(player)
+	local tutorialState = getTutorialState(player)
+
+	return tutorialState.modeCompleted
+		and tutorialState.win
+		and tutorialState.completed
+		and tutorialState.modeCompleted.Value == true
+		and tutorialState.win.Value == false
+		and tutorialState.completed.Value == false
+end
+
+local function setTutorialArenaResult(player, won)
+	local tutorialState = getTutorialState(player)
+	if not tutorialState.modeCompleted or not tutorialState.win or not tutorialState.completed then
+		return
+	end
+
+	if not isTutorialArenaInProgress(player) and not won then
+		return
+	end
+
+	tutorialState.modeCompleted.Value = true
+	tutorialState.win.Value = won
+	tutorialState.completed.Value = won
+end
+
 local function forceTeleportPlayer(v)
 	local s,e = nil,nil
 	repeat
@@ -371,9 +405,8 @@ function round.StartGame(host)
 
 		local function handleRewards()
 			for _, player in Players:GetPlayers() do
-				local tutorialWin = player:FindFirstChild("TutorialWin")
-				if tutorialWin and  not tutorialWin.Value then
-					tutorialWin.Value = true
+				if isTutorialArenaInProgress(player) then
+					setTutorialArenaResult(player, true)
 				end
 
 				info.Victory.Changed:Connect(function()
@@ -432,7 +465,9 @@ function round.StartGame(host)
 			info.Message.Value = "GAME OVER"
 
 			for i,v in Players:GetChildren() do
-				v.TutorialWin.Value = true
+				if isTutorialArenaInProgress(v) then
+					setTutorialArenaResult(v, false)
+				end
 			end
 
 		end

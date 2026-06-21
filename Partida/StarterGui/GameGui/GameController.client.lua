@@ -102,6 +102,9 @@ local lastSpawnTime = 0
 local lastHighlight = nil
 local lastValidResult = nil
 local hoveredInstance = nil
+local currentPlacementBaseOffset = nil
+local currentPlacementVisualAnchorOffset = nil
+local getMouseViewportPosition
 local abilityConn = nil :: RBXScriptConnection
 local abilityTick = nil
 local abilityActivateConn = nil :: RBXScriptConnection
@@ -1092,8 +1095,7 @@ function MouseRaycast(model)
 		return nil
 	end
 
-	local guiInset = GuiService:GetGuiInset()
-	local mousePosition = UserInputService:GetMouseLocation() - guiInset
+	local mousePosition = getMouseViewportPosition()
 	local mouseRay = currentCamera:ViewportPointToRay(mousePosition.X, mousePosition.Y)
 	local raycastParams = RaycastParams.new()
 	local blacklist = currentCamera:GetChildren()
@@ -1153,6 +1155,248 @@ function waitForPlacementSurface(timeoutSeconds)
 	end
 
 	return hasPlacementSurfaceForPlayer()
+end
+
+local function isPlacementHelperPart(part: BasePart)
+	return part.Name == "HumanoidRootPart"
+		or part.Name == "TowerBasePart"
+		or part.Name == "VFXTowerBasePart"
+		or part.Name == "PlacementBox"
+end
+
+local function getPartBoundsInRootSpace(rootCFrame: CFrame, part: BasePart)
+	local relativeCFrame = rootCFrame:ToObjectSpace(part.CFrame)
+	local halfSize = part.Size * 0.5
+	local minBounds = Vector3.new(math.huge, math.huge, math.huge)
+	local maxBounds = Vector3.new(-math.huge, -math.huge, -math.huge)
+
+	for xSign = -1, 1, 2 do
+		for ySign = -1, 1, 2 do
+			for zSign = -1, 1, 2 do
+				local corner = relativeCFrame:PointToWorldSpace(Vector3.new(
+					halfSize.X * xSign,
+					halfSize.Y * ySign,
+					halfSize.Z * zSign
+				))
+				minBounds = Vector3.new(
+					math.min(minBounds.X, corner.X),
+					math.min(minBounds.Y, corner.Y),
+					math.min(minBounds.Z, corner.Z)
+				)
+				maxBounds = Vector3.new(
+					math.max(maxBounds.X, corner.X),
+					math.max(maxBounds.Y, corner.Y),
+					math.max(maxBounds.Z, corner.Z)
+				)
+			end
+		end
+	end
+
+	return minBounds, maxBounds
+end
+
+local function collectPlacementPartBounds(tower: Model)
+	local root = tower:FindFirstChild("HumanoidRootPart") or tower.PrimaryPart
+	if not root or not root:IsA("BasePart") then
+		return nil, nil
+	end
+
+	local partBounds = {}
+	local minGroundY = math.huge
+	local minBounds = Vector3.new(math.huge, math.huge, math.huge)
+	local maxBounds = Vector3.new(-math.huge, -math.huge, -math.huge)
+
+	for _, descendant in tower:GetDescendants() do
+		if descendant:IsA("BasePart") and descendant.Transparency < 1 and not isPlacementHelperPart(descendant) then
+			local partMinBounds, partMaxBounds = getPartBoundsInRootSpace(root.CFrame, descendant)
+			table.insert(partBounds, {
+				minBounds = partMinBounds,
+				maxBounds = partMaxBounds,
+			})
+			minGroundY = math.min(minGroundY, partMinBounds.Y)
+			minBounds = Vector3.new(
+				math.min(minBounds.X, partMinBounds.X),
+				math.min(minBounds.Y, partMinBounds.Y),
+				math.min(minBounds.Z, partMinBounds.Z)
+			)
+			maxBounds = Vector3.new(
+				math.max(maxBounds.X, partMaxBounds.X),
+				math.max(maxBounds.Y, partMaxBounds.Y),
+				math.max(maxBounds.Z, partMaxBounds.Z)
+			)
+		end
+	end
+
+	if #partBounds == 0 then
+		return root, nil
+	end
+
+	return root, {
+		partBounds = partBounds,
+		minGroundY = minGroundY,
+		minBounds = minBounds,
+		maxBounds = maxBounds,
+	}
+end
+
+local function computePlacementBaseOffset(tower: Model)
+	local root, boundsData = collectPlacementPartBounds(tower)
+	if not root or not root:IsA("BasePart") then
+		return Vector3.new(0, -2, 0)
+	end
+
+	if not boundsData then
+		return Vector3.new(0, -(root.Size.Y * 1.5), 0)
+	end
+
+	local tolerance = math.max(0.3, root.Size.Y * 0.15)
+	local minX, maxX = math.huge, -math.huge
+	local minZ, maxZ = math.huge, -math.huge
+	local foundGroundContact = false
+
+	for _, bounds in boundsData.partBounds do
+		if bounds.minBounds.Y <= boundsData.minGroundY + tolerance then
+			foundGroundContact = true
+			minX = math.min(minX, bounds.minBounds.X)
+			maxX = math.max(maxX, bounds.maxBounds.X)
+			minZ = math.min(minZ, bounds.minBounds.Z)
+			maxZ = math.max(maxZ, bounds.maxBounds.Z)
+		end
+	end
+
+	if not foundGroundContact then
+		for _, bounds in boundsData.partBounds do
+			minX = math.min(minX, bounds.minBounds.X)
+			maxX = math.max(maxX, bounds.maxBounds.X)
+			minZ = math.min(minZ, bounds.minBounds.Z)
+			maxZ = math.max(maxZ, bounds.maxBounds.Z)
+		end
+	end
+
+	return Vector3.new((minX + maxX) * 0.5, boundsData.minGroundY, (minZ + maxZ) * 0.5)
+end
+
+local function computePlacementVisualAnchorOffset(tower: Model)
+	local root, boundsData = collectPlacementPartBounds(tower)
+	if not root or not root:IsA("BasePart") then
+		return Vector3.new(0, 0, 0)
+	end
+
+	if not boundsData then
+		return Vector3.new(0, root.Size.Y * 0.5, 0)
+	end
+
+	local minBounds = boundsData.minBounds
+	local maxBounds = boundsData.maxBounds
+	local height = maxBounds.Y - minBounds.Y
+	local anchorHeight = minBounds.Y + (height * 0.55)
+
+	return Vector3.new(
+		(minBounds.X + maxBounds.X) * 0.5,
+		anchorHeight,
+		(minBounds.Z + maxBounds.Z) * 0.5
+	)
+end
+
+local function getPlacementBaseOffset(tower: Model)
+	if tower == towerToSpawn then
+		currentPlacementBaseOffset = currentPlacementBaseOffset or computePlacementBaseOffset(tower)
+		return currentPlacementBaseOffset
+	end
+
+	return computePlacementBaseOffset(tower)
+end
+
+local function getPlacementVisualAnchorOffset(tower: Model)
+	if tower == towerToSpawn then
+		currentPlacementVisualAnchorOffset = currentPlacementVisualAnchorOffset or computePlacementVisualAnchorOffset(tower)
+		return currentPlacementVisualAnchorOffset
+	end
+
+	return computePlacementVisualAnchorOffset(tower)
+end
+
+getMouseViewportPosition = function()
+	return UserInputService:GetMouseLocation() - GuiService:GetGuiInset()
+end
+
+local function intersectRayWithPlane(rayOrigin: Vector3, rayDirection: Vector3, planePoint: Vector3, planeNormal: Vector3)
+	local denominator = rayDirection:Dot(planeNormal)
+	if math.abs(denominator) < 1e-4 then
+		return nil
+	end
+
+	local distance = (planePoint - rayOrigin):Dot(planeNormal) / denominator
+	if distance < 0 then
+		return nil
+	end
+
+	return rayOrigin + rayDirection * distance
+end
+
+local function computePlacementScreenCorrection(tower: Model, rootCFrame: CFrame, targetPosition: Vector3, surfaceNormal: Vector3?)
+	local currentCamera = getCurrentCamera()
+	if not currentCamera then
+		return Vector3.new(0, 0, 0)
+	end
+
+	local planeNormal = surfaceNormal and surfaceNormal.Magnitude > 0 and surfaceNormal.Unit or Vector3.new(0, 1, 0)
+	local visualAnchorOffset = getPlacementVisualAnchorOffset(tower)
+	local visualAnchorWorld = rootCFrame:PointToWorldSpace(visualAnchorOffset)
+	local anchorViewportPoint, anchorOnScreen = currentCamera:WorldToViewportPoint(visualAnchorWorld)
+	if not anchorOnScreen then
+		return Vector3.new(0, 0, 0)
+	end
+
+	local mouseViewportPosition = getMouseViewportPosition()
+	local mouseRay = currentCamera:ViewportPointToRay(mouseViewportPosition.X, mouseViewportPosition.Y)
+	local anchorRay = currentCamera:ViewportPointToRay(anchorViewportPoint.X, anchorViewportPoint.Y)
+
+	local mousePlanePoint = intersectRayWithPlane(mouseRay.Origin, mouseRay.Direction, targetPosition, planeNormal)
+	local anchorPlanePoint = intersectRayWithPlane(anchorRay.Origin, anchorRay.Direction, targetPosition, planeNormal)
+	if not mousePlanePoint or not anchorPlanePoint then
+		return Vector3.new(0, 0, 0)
+	end
+
+	return mousePlanePoint - anchorPlanePoint
+end
+
+local function computePlacementCFrame(tower: Model, targetPosition: Vector3, yRotation: number, surfaceNormal: Vector3?)
+	local baseOffset = getPlacementBaseOffset(tower)
+	local rotationCFrame = CFrame.Angles(0, math.rad(yRotation), 0)
+	local correctedTargetPosition = targetPosition
+
+	for _ = 1, 2 do
+		local rootCFrame = CFrame.new(correctedTargetPosition) * rotationCFrame * CFrame.new(-baseOffset)
+		local screenCorrection = computePlacementScreenCorrection(tower, rootCFrame, correctedTargetPosition, surfaceNormal)
+		if screenCorrection.Magnitude <= 0.001 then
+			return rootCFrame
+		end
+
+		correctedTargetPosition += screenCorrection
+	end
+
+	return CFrame.new(correctedTargetPosition) * rotationCFrame * CFrame.new(-baseOffset)
+end
+
+local function applyPlacementCFrame(tower: Model, rootCFrame: CFrame)
+	local root = tower:FindFirstChild("HumanoidRootPart") or tower.PrimaryPart
+	if not root or not root:IsA("BasePart") then
+		return
+	end
+
+	local pivotOffset = root.CFrame:ToObjectSpace(tower:GetPivot())
+	tower:PivotTo(rootCFrame * pivotOffset)
+
+	local vfxBasePart = tower:FindFirstChild("VFXTowerBasePart", true)
+	if vfxBasePart and vfxBasePart:IsA("BasePart") then
+		vfxBasePart.CFrame = rootCFrame
+	end
+
+	local towerBasePart = tower:FindFirstChild("TowerBasePart", true)
+	if towerBasePart and towerBasePart:IsA("BasePart") then
+		towerBasePart.CFrame = rootCFrame
+	end
 end
 
 function getDirectChildUnder(parent: Instance?, instance: Instance?)
@@ -1477,6 +1721,8 @@ function RemovePlaceholderTower()
 	if towerToSpawn then
 		PlacementDebug.log("RemovePlaceholderTower", "tower=", towerToSpawn.Name, "cframe=", PlacementDebug.formatCFrame(towerToSpawn:GetPivot()))
 		canPlace = false
+		currentPlacementBaseOffset = nil
+		currentPlacementVisualAnchorOffset = nil
 		PlacementDebug.lastSignature = nil
 		local UnitSlot = findSlotByTowerName(towerToSpawn.Name)
 		if UnitSlot then
@@ -1530,17 +1776,12 @@ AddPlaceholderTower = function(name, unit)
 		local result = MouseRaycast(towerToSpawn)
 		local initialCanPlace = isPlacementResultValid(result, towerToSpawn)
 		PlacementDebug.log("AddPlaceholderTower:initial-raycast", "name=", towerToSpawn.Name, "initialCanPlace=", initialCanPlace, "raycast=", PlacementDebug.describeRaycastResult(result))
+		currentPlacementBaseOffset = nil
+		currentPlacementVisualAnchorOffset = nil
 		if result and result.Instance then
-			local height = towerToSpawn:WaitForChild("HumanoidRootPart").Size.Y * 1.5
-			local x = result.Position.X
-			local y = result.Position.Y + height
-			local z = result.Position.Z
-			local cframe = CFrame.new(x, y, z) * CFrame.Angles(0, math.rad(rotation), 0)
-			towerToSpawn:SetPrimaryPartCFrame(cframe)
-			if towerToSpawn:FindFirstChild("VFXTowerBasePart", true) then
-				towerToSpawn:FindFirstChild("VFXTowerBasePart", true).CFrame = cframe
-			end
-			PlacementDebug.log("AddPlaceholderTower:initial-cframe", "name=", towerToSpawn.Name, "height=", height, "cframe=", PlacementDebug.formatCFrame(cframe))
+			local cframe = computePlacementCFrame(towerToSpawn, result.Position, rotation, result.Normal)
+			applyPlacementCFrame(towerToSpawn, cframe)
+			PlacementDebug.log("AddPlaceholderTower:initial-cframe", "name=", towerToSpawn.Name, "baseOffset=", PlacementDebug.formatVector3(getPlacementBaseOffset(towerToSpawn)), "cframe=", PlacementDebug.formatCFrame(cframe))
 		else
 			PlacementDebug.log("AddPlaceholderTower:no-initial-result", "name=", towerToSpawn.Name)
 		end
@@ -3862,15 +4103,8 @@ RunService.Heartbeat:Connect(function()
 			end
 			canPlace = isPlacementResultValid(result, towerToSpawn)
 			setPlacementVFXEnabled(towerToSpawn, canPlace)
-			local height = towerToSpawn:WaitForChild("HumanoidRootPart").Size.Y * 1.5
-			local x = result.Position.X
-			local y = result.Position.Y + height
-			local z = result.Position.Z
-			local cframe = CFrame.new(x, y, z) * CFrame.Angles(0, math.rad(rotation), 0)
-			towerToSpawn:SetPrimaryPartCFrame(cframe)
-			if towerToSpawn:FindFirstChild("VFXTowerBasePart", true) then
-				towerToSpawn:FindFirstChild("VFXTowerBasePart", true).CFrame = cframe
-			end
+			local cframe = computePlacementCFrame(towerToSpawn, result.Position, rotation, result.Normal)
+			applyPlacementCFrame(towerToSpawn, cframe)
 			PlacementDebug.state(usedLastValidResult and "Heartbeat:placement-using-last-result-over-gui" or "Heartbeat:placement-raycast", result, towerToSpawn, cframe)
 		else
 			local hoveredTower = resolveTowerFromInstance(result.Instance)

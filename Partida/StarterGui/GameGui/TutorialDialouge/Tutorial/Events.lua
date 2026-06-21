@@ -222,10 +222,12 @@ function tutorialEvents.Boss(callback)
 end
 
 function tutorialEvents.Defeated(callback)
-	if not info.Victory.Value then
-		repeat
+	while not (info.GameOver.Value and info.Victory.Value) do
+		if not info.Victory.Value then
 			info.Victory:GetPropertyChangedSignal("Value"):Wait()
-		until info.Victory.Value == true
+		elseif not info.GameOver.Value then
+			info.GameOver:GetPropertyChangedSignal("Value"):Wait()
+		end
 	end
 
 	callback()

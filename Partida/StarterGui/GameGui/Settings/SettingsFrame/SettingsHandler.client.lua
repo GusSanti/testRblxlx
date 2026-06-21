@@ -295,8 +295,13 @@ local btnTable = {
 }
 
 for i,v in Player.Settings:GetChildren() do
-	if v.Value and btnTable[v.Name] then
-		toggleon(btnTable[v.Name])
+	local button = btnTable[v.Name]
+	if button then
+		if v.Value then
+			toggleon(button)
+		else
+			toggleoff(button)
+		end
 	end
 end
 

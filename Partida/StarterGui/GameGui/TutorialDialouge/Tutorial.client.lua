@@ -91,7 +91,7 @@ local function RunTutorial()
 	end)
 
 	for stepNum, step in ipairs(tutorialSteps) do
-		if Info.Victory.Value or lost then
+		if lost then
 			break
 		end
 
