@@ -32,12 +32,18 @@ end
 
 local function tryAutoVoteForPlayer(player, source)
 	if Variables.SkipVoteOpen and hasAutoSkipEnabled(player) then
-		module.TryVote(player, source)
+		return module.TryVote(player, source)
 	end
+
+	return false
 end
 
 function module.HasAutoSkipEnabled(player)
 	return hasAutoSkipEnabled(player)
+end
+
+function module.TryAutoVoteForPlayer(player, source)
+	return tryAutoVoteForPlayer(player, source)
 end
 
 function module.TryVote(player, source)
@@ -93,7 +99,7 @@ function module.TryAutoVotes(allowRetry)
 
 	for _, player in Players:GetPlayers() do
 		if hasAutoSkipEnabled(player) then
-			tryAutoVoteForPlayer(player, "AutoSkip")
+			module.TryAutoVoteForPlayer(player, "AutoSkip")
 		end
 	end
 
@@ -121,11 +127,11 @@ local function bindAutoSkipSetting(player)
 			end
 
 			autoSkip:SetAttribute("AutoSkipVoteBound", true)
-			tryAutoVoteForPlayer(player, "AutoSkipLoaded")
+			module.TryAutoVoteForPlayer(player, "AutoSkipLoaded")
 
-			autoSkip.Changed:Connect(function()
+			autoSkip:GetPropertyChangedSignal("Value"):Connect(function()
 				if autoSkip.Value == true then
-					tryAutoVoteForPlayer(player, "AutoSkipChanged")
+					module.TryAutoVoteForPlayer(player, "AutoSkipChanged")
 				end
 			end)
 		end

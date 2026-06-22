@@ -12,8 +12,14 @@ local info = workspace.Info
 local mob = {}
 
 local CHECK_INTERVAL = 0.08
+local ARRIVAL_DISTANCE = 2.5
+local MAX_VERTICAL_DRIFT = 6
+local RECOVERY_COOLDOWN = 0.2
 local ORIGINAL_TRANSPARENCY_ATTRIBUTE = "OriginalMobTransparency"
 local ORIGINAL_ENABLED_ATTRIBUTE = "OriginalMobEnabled"
+local PATH_HEIGHT_OFFSET_ATTRIBUTE = "PathHeightOffset"
+local LAST_RECOVERY_ATTRIBUTE = "LastGroundRecoveryAt"
+local RECOVERY_COUNT_ATTRIBUTE = "GroundRecoveryCount"
 
 local function ensureMobCollisionGroup()
 	pcall(function()
@@ -53,6 +59,11 @@ local function getScaledMobSpeed(model)
 	return originalSpeed.Value * getGameSpeed() * getSlowFactor(model)
 end
 
+local function getFlatDistance(pos1: Vector3, pos2: Vector3): number
+	local delta = pos1 - pos2
+	return Vector3.new(delta.X, 0, delta.Z).Magnitude
+end
+
 local function getModelRootPart(model)
 	if not model or not model.Parent then
 		return nil
@@ -79,6 +90,84 @@ local function getSpawnCFrameFromMap(map, team)
 	end
 
 	return nil
+end
+
+local function getWaypointFolder(map, team)
+	if not info.Versus.Value then
+		local waypoints = map:FindFirstChild("Waypoints")
+		if waypoints then
+			return waypoints
+		end
+
+		return map:FindFirstChild("Waypoints" .. tostring(workspace.Info.PathNumber.Value))
+	elseif team then
+		return map:FindFirstChild(team .. "Waypoints")
+	end
+
+	return nil
+end
+
+local function getWaypointPart(waypoints: Instance, waypointIndex: number)
+	if not waypoints then
+		return nil
+	end
+
+	return waypoints:FindFirstChild(tostring(waypointIndex))
+end
+
+local function getStoredPathHeightOffset(model)
+	local offset = model:GetAttribute(PATH_HEIGHT_OFFSET_ATTRIBUTE)
+	if typeof(offset) == "number" then
+		return offset
+	end
+
+	return nil
+end
+
+local function ensurePathHeightOffset(model, root, targetPosition)
+	local offset = getStoredPathHeightOffset(model)
+	if offset ~= nil then
+		return offset
+	end
+
+	offset = root.Position.Y - targetPosition.Y
+	model:SetAttribute(PATH_HEIGHT_OFFSET_ATTRIBUTE, offset)
+	return offset
+end
+
+local function moveModelRootTo(model, root, targetPosition)
+	local delta = targetPosition - root.Position
+	if delta.Magnitude <= 0.01 then
+		return
+	end
+
+	model:PivotTo(model:GetPivot() + delta)
+end
+
+local function recoverMobPosition(model, humanoid, root, waypointPosition, pathHeightOffset)
+	if root.Anchored then
+		root.Anchored = false
+	end
+
+	local expectedY = waypointPosition.Y + pathHeightOffset
+	if root.Position.Y >= expectedY - MAX_VERTICAL_DRIFT then
+		return
+	end
+
+	local now = os.clock()
+	local lastRecovery = model:GetAttribute(LAST_RECOVERY_ATTRIBUTE)
+	if typeof(lastRecovery) == "number" and now - lastRecovery < RECOVERY_COOLDOWN then
+		return
+	end
+
+	model:SetAttribute(LAST_RECOVERY_ATTRIBUTE, now)
+	model:SetAttribute(RECOVERY_COUNT_ATTRIBUTE, (model:GetAttribute(RECOVERY_COUNT_ATTRIBUTE) or 0) + 1)
+
+	local correctedPosition = Vector3.new(root.Position.X, expectedY, root.Position.Z)
+	moveModelRootTo(model, root, correctedPosition)
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	humanoid:MoveTo(Vector3.new(waypointPosition.X, expectedY, waypointPosition.Z))
 end
 
 local function setMobHidden(model, hidden)
@@ -137,16 +226,10 @@ end
 function mob.Move(newMob, map, team)
 	local humanoid = newMob:WaitForChild("Humanoid")
 	local root = newMob:WaitForChild("HumanoidRootPart")
-	local waypoints
-
-	if not info.Versus.Value then
-		waypoints = map:FindFirstChild("Waypoints")
-	else
-		waypoints = map[team .. 'Waypoints']
-	end
-
+	local waypoints = getWaypointFolder(map, team)
 	if not waypoints then
-		waypoints = map:FindFirstChild("Waypoints"..tostring(game.Workspace.Info.PathNumber.Value))
+		newMob:Destroy()
+		return
 	end
 
 	for waypoint=newMob.MovingTo.Value, #waypoints:GetChildren() do
@@ -160,16 +243,23 @@ function mob.Move(newMob, map, team)
 		end
 
 		newMob.MovingTo.Value = waypoint
-		local target = waypoints[waypoint].Position
+		local waypointPart = getWaypointPart(waypoints, waypoint)
+		if not waypointPart then
+			continue
+		end
+
+		local target = waypointPart.Position
+		local pathHeightOffset = ensurePathHeightOffset(newMob, root, target)
+		local moveTarget = Vector3.new(target.X, target.Y + pathHeightOffset, target.Z)
 
 		local scaledSpeed = getScaledMobSpeed(newMob)
 		if scaledSpeed then
 			humanoid.WalkSpeed = scaledSpeed
 		end
 		setMobHidden(newMob, false)
-		humanoid:MoveTo(target)
+		humanoid:MoveTo(moveTarget)
 
-		while newMob.Parent and root.Parent and humanoid.Health > 0 and (root.Position - target).Magnitude > 2.5 do
+		while newMob.Parent and root.Parent and humanoid.Health > 0 and getFlatDistance(root.Position, moveTarget) > ARRIVAL_DISTANCE do
 			if info.GameOver.Value then
 				stopMobMovement(newMob, true)
 				return
@@ -179,7 +269,8 @@ function mob.Move(newMob, map, team)
 			if currentScaledSpeed and humanoid.WalkSpeed ~= currentScaledSpeed then
 				humanoid.WalkSpeed = currentScaledSpeed
 			end
-			humanoid:MoveTo(target)
+			recoverMobPosition(newMob, humanoid, root, target, pathHeightOffset)
+			humanoid:MoveTo(moveTarget)
 
 			task.wait(CHECK_INTERVAL)
 		end
@@ -272,7 +363,7 @@ function mob.Spawn(name, quantity, map, old, health, money, speed, isBoss, unitS
 			end
 			newMob.Humanoid.WalkSpeed = baseSpeed * getGameSpeed()
 
-			local previousRoot = getModelRootPart(old)
+			local previousRoot = getModelRootPart(currentFront)
 			local spawnCFrame = previousRoot and previousRoot.CFrame or getSpawnCFrameFromMap(map, team)
 			if spawnCFrame then
 				newMob:PivotTo(spawnCFrame)
@@ -291,6 +382,17 @@ function mob.Spawn(name, quantity, map, old, health, money, speed, isBoss, unitS
 				movingTo.Name = "MovingTo"
 				movingTo.Value = mvt
 				movingTo.Parent = newMob
+			end
+
+			local inheritedPathHeightOffset = currentFront and currentFront:GetAttribute(PATH_HEIGHT_OFFSET_ATTRIBUTE)
+			if typeof(inheritedPathHeightOffset) == "number" then
+				newMob:SetAttribute(PATH_HEIGHT_OFFSET_ATTRIBUTE, inheritedPathHeightOffset)
+			else
+				local waypointFolder = getWaypointFolder(map, team)
+				local currentWaypoint = waypointFolder and getWaypointPart(waypointFolder, mvt)
+				if currentWaypoint then
+					newMob:SetAttribute(PATH_HEIGHT_OFFSET_ATTRIBUTE, newMob.HumanoidRootPart.Position.Y - currentWaypoint.Position.Y)
+				end
 			end
 
 			local PathNumber = Instance.new("IntValue")
