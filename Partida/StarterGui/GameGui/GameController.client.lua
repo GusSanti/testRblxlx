@@ -1491,13 +1491,21 @@ function isPlacementResultValid(result: RaycastResult?, tower: Model?)
 		return false
 	end
 
-	local parent = result.Instance.Parent
-	local parentName = parent and parent.Name
-	if parentName == "GroundPlace" or (player.Team and parentName == player.Team.Name .. "GroundPlace") then
-		return true
+	local current: Instance? = result.Instance
+	local mapRoot = workspace:FindFirstChild("Map")
+	while current and current ~= mapRoot do
+		if current.Name == "GroundPlace" or (player.Team and current.Name == player.Team.Name .. "GroundPlace") then
+			return true
+		end
+
+		if current.Name == "AirPlace" and upgradesModule[tower.Name].Upgrades[1].Type == "Air" then
+			return true
+		end
+
+		current = current.Parent
 	end
 
-	return parentName == "AirPlace" and upgradesModule[tower.Name].Upgrades[1].Type == "Air"
+	return false
 end
 
 function buildPlacementColorSequence(primaryColor: Color3, secondaryColor: Color3)

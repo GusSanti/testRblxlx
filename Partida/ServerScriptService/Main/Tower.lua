@@ -43,6 +43,7 @@ local PLACEMENT_SURFACE_RAYCAST_DOWN = 80
 local PLACEMENT_HEIGHT_TOLERANCE = 1.75
 local PLACEMENT_MIN_SURFACE_NORMAL_Y = 0.65
 local PLACEMENT_DEFAULT_FOOTPRINT_RADIUS = 1.35
+local PLACEMENT_SURFACE_SEAM_TOLERANCE = 0.45
 local PLACEMENT_DEBUG = true
 
 local function placementDebug(player, ...)
@@ -546,12 +547,29 @@ local function getAllowedPlacementContainerName(player: Player, unitName: string
 	return containerName == "AirPlace" and isAirUnit(unitName)
 end
 
+local function getAllowedPlacementContainerForPart(player: Player, unitName: string, part: Instance?)
+	if not part then
+		return nil
+	end
+
+	local mapRoot = workspace:FindFirstChild("Map") or workspace
+	local current = part
+	while current and current ~= mapRoot do
+		if getAllowedPlacementContainerName(player, unitName, current.Name) then
+			return current
+		end
+		current = current.Parent
+	end
+
+	return nil
+end
+
 local function getAllowedPlacementContainers(player: Player, unitName: string)
 	local containers = {}
 	local mapRoot = workspace:FindFirstChild("Map") or workspace
 
 	for _, descendant in ipairs(mapRoot:GetDescendants()) do
-		if getAllowedPlacementContainerName(player, unitName, descendant.Name) then
+		if descendant:IsA("BasePart") and getAllowedPlacementContainerForPart(player, unitName, descendant) then
 			table.insert(containers, descendant)
 		end
 	end
@@ -559,20 +577,7 @@ local function getAllowedPlacementContainers(player: Player, unitName: string)
 	return containers
 end
 
-local function getAllowedPlacementContainerForPart(player: Player, unitName: string, part: Instance?)
-	if not part then
-		return nil
-	end
-
-	local parent = part.Parent
-	if parent and getAllowedPlacementContainerName(player, unitName, parent.Name) then
-		return parent
-	end
-
-	return nil
-end
-
-local function validatePlacementSample(player: Player, unitName: string, samplePosition: Vector3, expectedGroundY: number, raycastParams: RaycastParams)
+local function validatePlacementSampleAtPosition(player: Player, unitName: string, samplePosition: Vector3, expectedGroundY: number, raycastParams: RaycastParams)
 	local rayOrigin = samplePosition + Vector3.new(0, PLACEMENT_SURFACE_RAYCAST_UP, 0)
 	local rayDirection = Vector3.new(0, -(PLACEMENT_SURFACE_RAYCAST_UP + PLACEMENT_SURFACE_RAYCAST_DOWN), 0)
 	local result = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
@@ -602,6 +607,56 @@ local function validatePlacementSample(player: Player, unitName: string, sampleP
 	return true, "ok", result, container
 end
 
+local function buildPlacementRecoveryOffsets(searchRadius: number)
+	local halfRadius = searchRadius * 0.5
+	local diagonalRadius = searchRadius * 0.707
+	local halfDiagonalRadius = halfRadius * 0.707
+
+	return {
+		Vector3.new(halfRadius, 0, 0),
+		Vector3.new(-halfRadius, 0, 0),
+		Vector3.new(0, 0, halfRadius),
+		Vector3.new(0, 0, -halfRadius),
+		Vector3.new(halfDiagonalRadius, 0, halfDiagonalRadius),
+		Vector3.new(-halfDiagonalRadius, 0, halfDiagonalRadius),
+		Vector3.new(halfDiagonalRadius, 0, -halfDiagonalRadius),
+		Vector3.new(-halfDiagonalRadius, 0, -halfDiagonalRadius),
+		Vector3.new(searchRadius, 0, 0),
+		Vector3.new(-searchRadius, 0, 0),
+		Vector3.new(0, 0, searchRadius),
+		Vector3.new(0, 0, -searchRadius),
+		Vector3.new(diagonalRadius, 0, diagonalRadius),
+		Vector3.new(-diagonalRadius, 0, diagonalRadius),
+		Vector3.new(diagonalRadius, 0, -diagonalRadius),
+		Vector3.new(-diagonalRadius, 0, -diagonalRadius),
+	}
+end
+
+local function validatePlacementSample(player: Player, unitName: string, samplePosition: Vector3, expectedGroundY: number, raycastParams: RaycastParams, seamTolerance: number)
+	local isValid, reason, result, container = validatePlacementSampleAtPosition(player, unitName, samplePosition, expectedGroundY, raycastParams)
+	if isValid then
+		return true, reason, result, container
+	end
+
+	if seamTolerance <= 0 then
+		return false, reason, result, container
+	end
+
+	if reason ~= "no-placement-surface" and reason ~= "hit-not-allowed-placement-container" and reason ~= "height-mismatch" then
+		return false, reason, result, container
+	end
+
+	for _, offset in ipairs(buildPlacementRecoveryOffsets(seamTolerance)) do
+		local recoveredPosition = samplePosition + offset
+		local recoveredValid, recoveredReason, recoveredResult, recoveredContainer = validatePlacementSampleAtPosition(player, unitName, recoveredPosition, expectedGroundY, raycastParams)
+		if recoveredValid then
+			return true, recoveredReason, recoveredResult, recoveredContainer
+		end
+	end
+
+	return false, reason, result, container
+end
+
 local function validatePlacementSurface(player: Player, unitName: string, cframe: CFrame)
 	local containers = getAllowedPlacementContainers(player, unitName)
 	if #containers == 0 then
@@ -616,6 +671,7 @@ local function validatePlacementSurface(player: Player, unitName: string, cframe
 	local expectedGroundY = cframe.Position.Y - placementHeight
 	local radius = getTowerPlacementFootprintRadius(unitName)
 	local diagonalRadius = radius * 0.707
+	local seamTolerance = math.min(PLACEMENT_SURFACE_SEAM_TOLERANCE, math.max(0.18, radius * 0.3))
 	local offsets = {
 		Vector3.new(0, 0, 0),
 		Vector3.new(radius, 0, 0),
@@ -631,7 +687,7 @@ local function validatePlacementSurface(player: Player, unitName: string, cframe
 	for sampleIndex, offset in ipairs(offsets) do
 		local rotatedSample = cframe:PointToWorldSpace(offset)
 		local samplePosition = Vector3.new(rotatedSample.X, cframe.Position.Y, rotatedSample.Z)
-		local isValid, reason, result, container = validatePlacementSample(player, unitName, samplePosition, expectedGroundY, raycastParams)
+		local isValid, reason, result, container = validatePlacementSample(player, unitName, samplePosition, expectedGroundY, raycastParams, seamTolerance)
 		if not isValid then
 			return false, reason, result, container, sampleIndex, samplePosition, expectedGroundY
 		end

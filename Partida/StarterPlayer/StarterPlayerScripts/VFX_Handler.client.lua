@@ -23,6 +23,10 @@ local TowerInfo = require(ReplicatedStorage.Modules.Helpers.TowerInfo)
 EmitModule.init()
 local DEATH_VFX_EMIT_DELAY = 0.1
 local DEATH_VFX_LIFETIME = 3
+local SPLASH_SURFACE_RAYCAST_HEIGHT = 24
+local SPLASH_SURFACE_RAYCAST_DEPTH = 96
+local SPLASH_SURFACE_RAYCAST_ATTEMPTS = 10
+local SPLASH_INDICATOR_VISUAL_OFFSET = 0.15
 local replicatedVfxFolder = ReplicatedStorage:FindFirstChild("VFX")
 local deathVfxTemplate = replicatedVfxFolder and replicatedVfxFolder:FindFirstChild("DeathVfx")
 local trackedMobFolders = setmetatable({}, {__mode = "k"})
@@ -66,6 +70,67 @@ local function getDeathVfxTemplate()
 	replicatedVfxFolder = replicatedVfxFolder or ReplicatedStorage:FindFirstChild("VFX")
 	deathVfxTemplate = replicatedVfxFolder and replicatedVfxFolder:FindFirstChild("DeathVfx")
 	return deathVfxTemplate
+end
+
+local function is_helper_surface_part(part: BasePart): boolean
+	local lowerName = string.lower(part.Name)
+	local parent = part.Parent
+	local lowerParentName = if parent then string.lower(parent.Name) else ""
+
+	if lowerName == "placementbox" or lowerName == "radiuspart" then
+		return true
+	end
+
+	if string.find(lowerParentName, "groundplace", 1, true) then
+		return true
+	end
+
+	if string.find(lowerParentName, "airplace", 1, true) then
+		return true
+	end
+
+	return string.find(lowerParentName, "waypoints", 1, true) ~= nil
+end
+
+local function should_skip_surface_part(part: BasePart): boolean
+	if part.Transparency >= 0.98 then
+		return true
+	end
+
+	return is_helper_surface_part(part)
+end
+
+local function get_surface_aligned_position(worldPosition: Vector3, exclusions: {Instance}, fallbackPosition: Vector3): Vector3
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+	raycastParams.FilterDescendantsInstances = exclusions
+
+	local rayOrigin = worldPosition + Vector3.new(0, SPLASH_SURFACE_RAYCAST_HEIGHT, 0)
+	local rayDirection = Vector3.new(0, -SPLASH_SURFACE_RAYCAST_DEPTH, 0)
+	local fallbackResult: RaycastResult? = nil
+
+	for _ = 1, SPLASH_SURFACE_RAYCAST_ATTEMPTS do
+		local result = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+		if not result or not result.Instance then
+			break
+		end
+
+		fallbackResult = fallbackResult or result
+
+		local hitPart = result.Instance
+		if hitPart:IsA("BasePart") and not should_skip_surface_part(hitPart) then
+			return result.Position + Vector3.new(0, SPLASH_INDICATOR_VISUAL_OFFSET, 0)
+		end
+
+		table.insert(exclusions, hitPart)
+		raycastParams.FilterDescendantsInstances = exclusions
+	end
+
+	if fallbackResult then
+		return fallbackResult.Position + Vector3.new(0, SPLASH_INDICATOR_VISUAL_OFFSET, 0)
+	end
+
+	return fallbackPosition
 end
 
 local function spawnDeathVfx(mob: Model, deathCFrame: CFrame?)
@@ -367,8 +432,9 @@ while task.wait() do
 					end
 					if game.Workspace.CurrentCamera:FindFirstChild("SplashPart") and v:FindFirstChild("SplashPositionPart") then
 
-						local newCFrame = CFrame.new(target.HumanoidRootPart.Position) * CFrame.new(0,target.HumanoidRootPart.Size.Y*-1.45,0)
-						TS:Create(v.SplashPositionPart,TweenInfo.new(0.2/GameSpeed.Value,Enum.EasingStyle.Sine),{Position = newCFrame.Position}):Play()  --target.HumanoidRootPart.CFrame * CFrame.new(0,target.HumanoidRootPart.Size.Y*-1.45,0)
+						local fallbackPosition = (CFrame.new(target.HumanoidRootPart.Position) * CFrame.new(0,target.HumanoidRootPart.Size.Y*-1.45,0)).Position
+						local splashPosition = get_surface_aligned_position(target.HumanoidRootPart.Position, {target, v}, fallbackPosition)
+						TS:Create(v.SplashPositionPart,TweenInfo.new(0.2/GameSpeed.Value,Enum.EasingStyle.Sine),{Position = splashPosition}):Play()  --target.HumanoidRootPart.CFrame * CFrame.new(0,target.HumanoidRootPart.Size.Y*-1.45,0)
 						if game.Workspace.CurrentCamera.SplashPart:FindFirstChild("Arrows") then
 							--TS:Create(game.Workspace.CurrentCamera.SplashPart,TweenInfo.new(0.2,Enum.EasingStyle.Sine),{Rotation = Vector3.new(0,0,0)}):Play()
 							local part1Position = game.Workspace.CurrentCamera.SplashPart.WeldConstraint.Part1.Position + Vector3.new(0,0.2,0)

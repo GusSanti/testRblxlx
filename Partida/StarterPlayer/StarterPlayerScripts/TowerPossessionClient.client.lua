@@ -25,6 +25,10 @@ local POSSESSION_CAMERA_BEHIND_HEIGHT: number = 2
 local POSSESSION_CAMERA_LOOK_HEIGHT: number = 1.6
 local POSSESSION_CAMERA_ENTER_HEIGHT_OFFSET: number = 0.08
 local GROUND_CLEARANCE_HEIGHT: number = 1
+local TARGET_INDICATOR_VISUAL_OFFSET: number = 0.2
+local AIM_RAYCAST_MAX_ATTEMPTS: number = 12
+local AIM_SURFACE_RAYCAST_HEIGHT: number = 48
+local AIM_SURFACE_RAYCAST_DEPTH: number = 128
 
 local MAX_ENERGY: number = 100
 local DRAIN_RATE: number = 0
@@ -120,6 +124,7 @@ local targetingData = {
 	Slot = nil :: number?,
 	UIIndex = nil :: number?,
 	Indicator = nil :: BasePart?,
+	SurfacePosition = nil :: Vector3?,
 	MaxRange = 0,
 }
 
@@ -346,12 +351,8 @@ local function get_possession_enter_cframe(towerModel: Model, towerRoot: BasePar
 	return CFrame.lookAt(enterPosition, lookPosition)
 end
 
-local function getAimPosition(): Vector3
-	local rayOrigin = camera.CFrame.Position
-	local rayDirection = camera.CFrame.LookVector * 2000
-	local raycastParams = RaycastParams.new()
-
-	local filterList = {}
+local function build_aim_raycast_filter(): {Instance}
+	local filterList: {Instance} = {}
 	if player.Character then
 		table.insert(filterList, player.Character)
 	end
@@ -362,15 +363,87 @@ local function getAimPosition(): Vector3
 		table.insert(filterList, viewmodelFolder)
 	end
 
+	return filterList
+end
+
+local function is_helper_target_surface(part: BasePart): boolean
+	local lowerName = string.lower(part.Name)
+	local parent = part.Parent
+	local lowerParentName = if parent then string.lower(parent.Name) else ""
+
+	if lowerName == "placementbox" or lowerName == "radiuspart" then
+		return true
+	end
+
+	if string.find(lowerParentName, "groundplace", 1, true) then
+		return true
+	end
+
+	if string.find(lowerParentName, "airplace", 1, true) then
+		return true
+	end
+
+	return string.find(lowerParentName, "waypoints", 1, true) ~= nil
+end
+
+local function should_skip_target_surface(part: BasePart): boolean
+	if part.Transparency >= 0.98 then
+		return true
+	end
+
+	return is_helper_target_surface(part)
+end
+
+local function raycast_for_best_aim_hit(rayOrigin: Vector3, rayDirection: Vector3): (Vector3, RaycastResult?)
+	local filterList = build_aim_raycast_filter()
+	local raycastParams = RaycastParams.new()
 	raycastParams.FilterDescendantsInstances = filterList
 	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 
-	local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-	if rayResult then
-		return rayResult.Position
+	local fallbackResult: RaycastResult? = nil
+
+	for _ = 1, AIM_RAYCAST_MAX_ATTEMPTS do
+		local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+		if not rayResult or not rayResult.Instance then
+			break
+		end
+
+		fallbackResult = fallbackResult or rayResult
+
+		local hitPart = rayResult.Instance
+		if hitPart:IsA("BasePart") and not should_skip_target_surface(hitPart) then
+			return rayResult.Position, rayResult
+		end
+
+		table.insert(filterList, hitPart)
+		raycastParams.FilterDescendantsInstances = filterList
 	end
 
-	return rayOrigin + rayDirection
+	if fallbackResult then
+		return fallbackResult.Position, fallbackResult
+	end
+
+	return rayOrigin + rayDirection, nil
+end
+
+local function align_point_to_target_surface(worldPosition: Vector3): Vector3
+	local alignedPosition, rayResult = raycast_for_best_aim_hit(
+		worldPosition + Vector3.new(0, AIM_SURFACE_RAYCAST_HEIGHT, 0),
+		Vector3.new(0, -AIM_SURFACE_RAYCAST_DEPTH, 0)
+	)
+
+	if rayResult then
+		return alignedPosition
+	end
+
+	return worldPosition
+end
+
+local function getAimPosition(): Vector3
+	local rayOrigin = camera.CFrame.Position
+	local rayDirection = camera.CFrame.LookVector * 2000
+	local aimPosition = raycast_for_best_aim_hit(rayOrigin, rayDirection)
+	return aimPosition
 end
 
 local function clear_viewmodel(): ()
@@ -390,6 +463,7 @@ local function cancel_targeting(): ()
 	targetingData.Active = false
 	targetingData.Slot = nil
 	targetingData.UIIndex = nil
+	targetingData.SurfacePosition = nil
 
 	if targetingData.Indicator then
 		targetingData.Indicator:Destroy()
@@ -1067,7 +1141,7 @@ local function on_shoot_action(_: string, state: Enum.UserInputState): Enum.Cont
 
 	if targetingData.Active and currentlyPossessing then
 		if trigger_ability_cooldown(targetingData.UIIndex) then
-			shootEvent:FireServer(targetingData.Indicator.Position, camera.CFrame.LookVector, targetingData.Slot)
+			shootEvent:FireServer(targetingData.SurfacePosition or targetingData.Indicator.Position, camera.CFrame.LookVector, targetingData.Slot)
 		end
 		cancel_targeting()
 		return Enum.ContextActionResult.Sink
@@ -1281,8 +1355,9 @@ local function on_render_step(deltaTime: number): ()
 				aimPos = flatTowerPos + (dir * targetingData.MaxRange)
 			end
 
-			aimPos = aimPos + Vector3.new(0, 0.2, 0)
-			targetingData.Indicator.CFrame = CFrame.new(aimPos) * CFrame.Angles(0, 0, math.rad(90))
+			aimPos = align_point_to_target_surface(aimPos)
+			targetingData.SurfacePosition = aimPos
+			targetingData.Indicator.CFrame = CFrame.new(aimPos + Vector3.new(0, TARGET_INDICATOR_VISUAL_OFFSET, 0)) * CFrame.Angles(0, 0, math.rad(90))
 		end
 	end
 end
