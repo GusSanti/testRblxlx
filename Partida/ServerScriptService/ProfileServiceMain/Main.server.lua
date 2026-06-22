@@ -549,11 +549,9 @@ local function main()
 				return require(game.ServerScriptService.Main.Round.RoundFunctions.VoteSkip)
 			end)
 
-			if success and VoteSkip.TryVote then
-				VoteSkip.TryVote(player, "AutoSkipSetting")
+			if success and VoteSkip.TryAutoVoteForPlayer then
+				VoteSkip.TryAutoVoteForPlayer(player, "AutoSkipSetting")
 			end
-
-			ReplicatedStorage.Events.SkipGui:FireClient(player, false)
 		end
 	end)
 

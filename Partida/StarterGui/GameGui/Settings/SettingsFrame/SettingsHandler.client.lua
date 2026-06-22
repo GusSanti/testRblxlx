@@ -166,6 +166,12 @@ local Player = Players.LocalPlayer
 
 repeat task.wait() until Player:FindFirstChild('DataLoaded')
 
+local SkipUI = Player:WaitForChild("PlayerGui"):WaitForChild("NewUI"):WaitForChild("Skip")
+
+local function setAutoSkipLocalEnabled(enabled)
+	SkipUI:SetAttribute("AutoSkipLocalEnabled", enabled == true)
+end
+
 local sinans_modules = ReplicatedStorage:WaitForChild("sinans_modules")
 
 local UI = SoundService:WaitForChild("UI")
@@ -305,6 +311,16 @@ for i,v in Player.Settings:GetChildren() do
 	end
 end
 
+local autoSkipSetting = Player.Settings:FindFirstChild("AutoSkip")
+if autoSkipSetting then
+	setAutoSkipLocalEnabled(autoSkipSetting.Value)
+	autoSkipSetting:GetPropertyChangedSignal("Value"):Connect(function()
+		setAutoSkipLocalEnabled(autoSkipSetting.Value)
+	end)
+else
+	setAutoSkipLocalEnabled(false)
+end
+
 Disable_VFX.Contents.Toggle.Activated:Connect(function()
 	--updateSettingEvent:FireServer(settingName, currentPercent)
 	local result = toggle(Disable_VFX)
@@ -316,6 +332,7 @@ Disable_Damage_Indicator.Contents.Toggle.Activated:Connect(function()
 end)
 Auto_Skip_Waves.Contents.Toggle.Activated:Connect(function()
 	local result = toggle(Auto_Skip_Waves)
+	setAutoSkipLocalEnabled(result)
 	updateSettingEvent:FireServer("AutoSkip", result)
 end)
 Reduce_Motion.Contents.Toggle.Activated:Connect(function()
