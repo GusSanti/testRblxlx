@@ -31,6 +31,26 @@ local requestAbilityFunction = functions:WaitForChild("RequestAbility")
 
 local info = workspace:WaitForChild("Info")
 
+local function ensureInfoValue(name, className, defaultValue)
+	local value = info:FindFirstChild(name)
+	if value and value:IsA(className) then
+		return value
+	end
+
+	if value then
+		value:Destroy()
+	end
+
+	value = Instance.new(className)
+	value.Name = name
+	value.Value = defaultValue
+	value.Parent = info
+	return value
+end
+
+ensureInfoValue("Versus", "BoolValue", false)
+ensureInfoValue("ChallengeNumber", "IntValue", -1)
+
 local maxTowers
 local tower = {}
 local PlayerTowers = {}

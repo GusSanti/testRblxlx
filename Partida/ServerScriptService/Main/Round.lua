@@ -141,6 +141,22 @@ end
 function round.StartGame(host)
 	if info.GameRunning.Value == true then return end
 
+	Variables.CurrentRound = 0
+	Variables.MaxWave = 1
+	Variables.Skip = false
+	Variables.SkipVotes = 0
+	Variables.SkipVoteOpen = false
+	Variables.SkipVoteOpenedRound = 0
+	Variables.healthMultiplier = 1
+	Variables.raidLuckIncrease = 0
+	Variables.ticketCounts = {}
+	Variables.gemCounts = {}
+	Variables.infinityTowerReward = {}
+	Variables.infinityWaveReward = 200
+	table.clear(Variables.Players)
+	table.clear(Variables.PlayersVotedForStart)
+	script:SetAttribute('SpeedMultiplier', 1)
+	script:SetAttribute('MobSpawnDelay', BASIC_MOB_SPAWN_DELAY)
 	Variables.win = false
 	Variables.died = false
 	info.Victory.Value = false
@@ -379,7 +395,7 @@ function round.StartGame(host)
 			if challengeData and challengeData.MobStats ~= nil then
 				script:SetAttribute('SpeedMultiplier', script:GetAttribute('SpeedMultiplier') + (challengeData.MobStats.Speed / 100))
 
-				healthMultiplier += (challengeData.MobStats.Health / 100)
+				Variables.healthMultiplier += (challengeData.MobStats.Health / 100)
 			end
 
 			if Variables.challenge == 9 then

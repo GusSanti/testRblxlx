@@ -7,12 +7,31 @@ local BASIC_MOB_SPAWN_DELAY = 1
 local MIN_MOB_SPAWN_DELAY = 1
 --local GameStarted = Info.GameRunning
 
+local function ensureInfoBoolValue(name, defaultValue)
+	local value = Info:FindFirstChild(name)
+	if value and value:IsA("BoolValue") then
+		return value
+	end
+
+	if value then
+		value:Destroy()
+	end
+
+	value = Instance.new("BoolValue")
+	value.Name = name
+	value.Value = defaultValue
+	value.Parent = Info
+	return value
+end
+
+local versusValue = ensureInfoBoolValue("Versus", false)
+
 --if not GameStarted.Value then
 --GameStarted:GetPropertyChangedSignal('Value'):Wait()
 --end
 
 --if not Info.Versus.Value then return {} end
-repeat task.wait(1) until Info.Versus.Value 
+repeat task.wait(1) until versusValue.Value 
 
 local Wave = Info.Wave
 

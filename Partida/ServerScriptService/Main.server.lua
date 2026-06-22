@@ -30,11 +30,51 @@ local function ensureInfoIntValue(name, defaultValue)
 	return value
 end
 
+local function ensureInfoBoolValue(name, defaultValue)
+	local value = info:FindFirstChild(name)
+	if value and value:IsA("BoolValue") then
+		return value
+	end
+
+	if value then
+		value:Destroy()
+	end
+
+	value = Instance.new("BoolValue")
+	value.Name = name
+	value.Value = defaultValue
+	value.Parent = info
+	return value
+end
+
+local function ensureInfoStringValue(name, defaultValue)
+	local value = info:FindFirstChild(name)
+	if value and value:IsA("StringValue") then
+		return value
+	end
+
+	if value then
+		value:Destroy()
+	end
+
+	value = Instance.new("StringValue")
+	value.Name = name
+	value.Value = defaultValue
+	value.Parent = info
+	return value
+end
+
 -- Older Info templates can be missing challenge-specific values. Default them so
 -- normal matches do not fail placement checks that read challenge state.
 local challengeNumberValue = ensureInfoIntValue("ChallengeNumber", -1)
 local challengeRewardValue = ensureInfoIntValue("ChallengRewardeNumber", 0)
 local challengeUniqueIdValue = ensureInfoIntValue("ChallengeUniqueId", 0)
+local versusValue = ensureInfoBoolValue("Versus", false)
+local competitiveValue = ensureInfoBoolValue("Competitive", false)
+local infinityValue = ensureInfoBoolValue("Infinity", false)
+local raidValue = ensureInfoBoolValue("Raid", false)
+local eventValue = ensureInfoBoolValue("Event", false)
+local difficultyValue = ensureInfoStringValue("Difficulty", "Normal")
 
 
 local Players = game:GetService("Players")
@@ -141,10 +181,10 @@ local function handlePlayerJoin(player)
 		workspace.Info.World.Value = teleportData.World
 		workspace.Info.Level.Value = teleportData.Level
 		workspace.Info.Mode.Value = teleportData.Mode
-		workspace.Info.Raid.Value = teleportData.Raid
-		workspace.Info.Infinity.Value = teleportData.Level == 0 or teleportData.Infinity
-		workspace.Info.Event.Value = teleportData.Event
-		workspace.Info.Difficulty.Value = resolveTeleportDifficulty(teleportData)
+		raidValue.Value = teleportData.Raid
+		infinityValue.Value = teleportData.Level == 0 or teleportData.Infinity
+		eventValue.Value = teleportData.Event
+		difficultyValue.Value = resolveTeleportDifficulty(teleportData)
 
 		if StoryModeStats.Maps[teleportData.World] then
 			info.WorldString.Value = StoryModeStats.Maps[teleportData.World]
@@ -154,8 +194,8 @@ local function handlePlayerJoin(player)
 			workspace.Info.OwnerId.Value = teleportData.OwnerId
 		end
 
-		info.Versus.Value = teleportData.Versus
-		info.Competitive.Value = teleportData.Competitive
+		versusValue.Value = teleportData.Versus
+		competitiveValue.Value = teleportData.Competitive
 
 		if teleportData.Versus or teleportData.Competitive then
 			if info.WorldString.Value == '' then

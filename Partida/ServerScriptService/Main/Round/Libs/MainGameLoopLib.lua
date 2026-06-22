@@ -22,6 +22,69 @@ local Warning = ReplicatedStorage.ServerWarningEvent
 local module = {}
 
 local EnemySpawnChances = Variables.RoundStats.EnemySpawnChances
+local bossPool = nil
+
+local function getInfiniteDifficultyMultiplier()
+	return math.max(info.Mode.Value, 1) * math.max(#Players:GetPlayers(), 1)
+end
+
+local function getInfiniteSpawnChances()
+	local spawnChances = table.clone(EnemySpawnChances)
+	local chanceStats = Variables.RoundStats.EnemySpawnChancesStats or {}
+
+	for enemy, baseChance in spawnChances do
+		local increaseStats = chanceStats[enemy]
+		if increaseStats and Variables.CurrentRound >= increaseStats.StartRound and Variables.CurrentRound <= increaseStats.EndRound then
+			spawnChances[enemy] = baseChance + increaseStats.Increase
+		end
+	end
+
+	return spawnChances
+end
+
+local function selectWeightedEnemy(spawnChances)
+	local totalWeight = 0
+	for _, weight in spawnChances do
+		totalWeight += weight
+	end
+
+	if totalWeight <= 0 then
+		local fallbackEnemy = next(spawnChances)
+		return fallbackEnemy
+	end
+
+	local randomNumber = math.random() * totalWeight
+	local counter = 0
+
+	for enemy, weight in spawnChances do
+		counter += weight
+		if randomNumber <= counter then
+			return enemy
+		end
+	end
+
+	local fallbackEnemy = next(spawnChances)
+	return fallbackEnemy
+end
+
+local function getInfiniteMobAmount(selectedMob)
+	local amounts = Variables.RoundStats.MobAmounts[selectedMob]
+	if not amounts then
+		return 1
+	end
+
+	local mobAmount = 1
+	local lastHighestRound = -math.huge
+
+	for minRound, selectedAmount in amounts do
+		if Variables.CurrentRound > minRound and minRound >= lastHighestRound then
+			mobAmount = selectedAmount
+			lastHighestRound = minRound
+		end
+	end
+
+	return mobAmount
+end
 
 local function didMainBaseFall()
 	if info.Versus.Value then
@@ -211,45 +274,29 @@ repeat
 			end
 		end
 
-		local newSpawnChances = table.clone(EnemySpawnChances)
+		local newSpawnChances = getInfiniteSpawnChances()
 		for i=1, mobGroups do
-			local total = 0
-			for enemyName, enemyPercent in newSpawnChances do
-				total += enemyPercent
+			local selectedMob = selectWeightedEnemy(newSpawnChances)
+			if not selectedMob then
+				break
 			end
-			local randomNumber = math.random(0,total*100)/100
-			local counter = 0
-			local selectedMob = "normal"
 
-			for enemy, weight in newSpawnChances do
-				counter = counter + weight
-				if randomNumber >= counter then
-					selectedMob = enemy
-				end
-			end
-			local mobAmount = 1
-			local lastHighestRound = 0
-			for minRound, selectedAmount in Variables.RoundStats.MobAmounts[selectedMob] do
-				if Variables.CurrentRound > minRound and minRound >= lastHighestRound then
-					mobAmount = selectedAmount
-					lastHighestRound = minRound
-				end
-			end
+			local mobAmount = getInfiniteMobAmount(selectedMob)
 			table.insert(round.wave,{unit = selectedMob, amount = mobAmount})
 			newSpawnChances[selectedMob] = nil
 		end
 
 		if Variables.CurrentRound%10 == 0 then
-			if not bosses or #bosses == 0 then
+			if not bossPool or #bossPool == 0 then
 				if workspace.Info.World.Value == 5 then
-					bosses = {"boss1","boss2","boss3"}
+					bossPool = {"boss1","boss2","boss3"}
 				else
-					bosses = {"boss1","boss2","boss3","boss4","boss5"}
+					bossPool = {"boss1","boss2","boss3","boss4","boss5"}
 				end
 			end
-			local randomIndex = math.random(1,#bosses)
-			local chosenBoss = bosses[randomIndex]
-			table.remove(bosses,randomIndex)
+			local randomIndex = math.random(1,#bossPool)
+			local chosenBoss = bossPool[randomIndex]
+			table.remove(bossPool,randomIndex)
 			table.insert(round.wave,{unit = chosenBoss, amount = 1, is_boss = true})
 		end
 
@@ -257,14 +304,6 @@ repeat
 			table.insert(round.wave,{unit = Variables.RoundStats.mega_boss, amount = 1, is_boss = true})
 		end
 
-		for enemy, chance in EnemySpawnChances do
-			local increaseStats = Variables.RoundStats.EnemySpawnChancesStats[enemy]
-			if increaseStats then
-				if Variables.CurrentRound >= increaseStats.StartRound and Variables.CurrentRound <= increaseStats.EndRound then
-					chance += increaseStats.Increase
-				end
-			end
-		end
 	end
 	if Variables.infinity then
 		Variables.healthMultiplier += (Variables.CurrentRound^1.5)/577.8 
@@ -317,7 +356,8 @@ repeat
 				local redMob
 
 				if Variables.infinity then
-					newMob = mob.Spawn(unitName, 1, Variables.map, lastSpawnedMob, math.round((health*info.Mode.Value)*#Players:GetPlayers()), money, speed, roundinfo.is_boss,unitStats)
+					local infiniteHealth = math.max(1, math.round(health * getInfiniteDifficultyMultiplier()))
+					newMob = mob.Spawn(unitName, 1, Variables.map, lastSpawnedMob, infiniteHealth, money, speed, roundinfo.is_boss,unitStats)
 					lastSpawnedMob = newMob or lastSpawnedMob
 				else
 					if not info.Versus.Value then
@@ -392,8 +432,8 @@ repeat
 		count += 1
 		--print(count)
 		if not info.Versus.Value then
-			if #game.Workspace.Mobs:GetChildren() == 0 or count == 23 then
-				if count == 23 then
+			if getActiveMobCount() == 0 or (not Variables.infinity and count == 23) then
+				if not Variables.infinity and count == 23 then
 					--ReplicatedStorage.Events.Client.Message:FireAllClients("Force Skipped Wave")
 				end
 

@@ -85,6 +85,10 @@ local camera = workspace.CurrentCamera
 local gui = script.Parent
 local GlobalGUI = gui.Parent:WaitForChild("GlobalGUI")
 local info = workspace:WaitForChild("Info")
+info:WaitForChild("Versus")
+info:WaitForChild("Competitive")
+info:WaitForChild("Event")
+info:WaitForChild("ChallengeNumber")
 local Upgrade = NewUI:WaitForChild("Scout")
 local SkipUI = NewUI:WaitForChild("Skip")
 local StopButton = nil
