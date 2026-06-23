@@ -88,7 +88,34 @@ local info = workspace:WaitForChild("Info")
 info:WaitForChild("Versus")
 info:WaitForChild("Competitive")
 info:WaitForChild("Event")
-info:WaitForChild("ChallengeNumber")
+
+local function getChallengeNumber()
+	local challengeNumber = info:FindFirstChild("ChallengeNumber")
+	if challengeNumber and challengeNumber:IsA("ValueBase") and typeof(challengeNumber.Value) == "number" then
+		return challengeNumber.Value
+	end
+
+	return -1
+end
+
+local function getChallengeData()
+	local challengeNumber = getChallengeNumber()
+	if challengeNumber <= 0 then
+		return nil, challengeNumber
+	end
+
+	return ChallengeModule.Data[challengeNumber], challengeNumber
+end
+
+local function getChallengePriceModifier()
+	local challengeData = getChallengeData()
+	if challengeData and challengeData.UnitStats ~= nil then
+		return challengeData.UnitStats.Price / 100
+	end
+
+	return 0
+end
+
 local Upgrade = NewUI:WaitForChild("Scout")
 local SkipUI = NewUI:WaitForChild("Skip")
 local StopButton = nil
@@ -813,12 +840,7 @@ function getTowerPriceMultiplier(tower)
 		end
 	end
 
-	if workspace.Info.ChallengeNumber.Value ~= -1 then
-		local challengeData = ChallengeModule.Data[workspace.Info.ChallengeNumber.Value]
-		if challengeData and challengeData.UnitStats ~= nil then
-			priceMultiplier += (challengeData.UnitStats.Price / 100)
-		end
-	end
+	priceMultiplier += getChallengePriceModifier()
 
 	return priceMultiplier
 end
@@ -2104,12 +2126,7 @@ toggleTowerInfo = function()
 					priceMultiplier = (1 - (Traits.Traits[config.Trait.Value]["Money"] / 100))
 				end
 			end
-			if workspace.Info.ChallengeNumber.Value ~= -1 then
-				local challengeData = ChallengeModule.Data[workspace.Info.ChallengeNumber.Value]
-				if challengeData and challengeData.UnitStats ~= nil then
-					priceMultiplier += (challengeData.UnitStats.Price / 100)
-				end
-			end
+			priceMultiplier += getChallengePriceModifier()
 			if UpgradeData then
 				if UnitStats[upgradeTower.Value].AttackName ~= UpgradeData.AttackName then
 					Upgrade.VFXText.Text = "+" .. UpgradeData.AttackName
@@ -2612,8 +2629,8 @@ do
 			return normalizedDifficulty
 		end
 
-		if info.ChallengeNumber.Value > 0 then
-			local challengeData = ChallengeModule.Data[info.ChallengeNumber.Value]
+		local challengeData, challengeNumber = getChallengeData()
+		if challengeNumber > 0 then
 			return challengeData and challengeData.Name or "Challenge"
 		end
 
@@ -3491,9 +3508,10 @@ do
 		setEndScreenButtonText(nextButton, "Next")
 		setEndScreenButtonText(replayButton, "Replay")
 		setEndScreenButtonText(lobbyButton, "Back To Lobby")
-		local canShowNext = status ~= "GAME OVER" and not info.Event.Value and not info.Versus.Value and info.ChallengeNumber.Value < 0
+		local challengeNumber = getChallengeNumber()
+		local canShowNext = status ~= "GAME OVER" and not info.Event.Value and not info.Versus.Value and challengeNumber < 0
 		local canShowReplay = not info.Versus.Value
-		if info.ChallengeNumber.Value > 0 then
+		if challengeNumber > 0 then
 			canShowNext = false
 			canShowReplay = true
 		end
@@ -3619,7 +3637,7 @@ function SetupGameGui()
 			updateBlueHealth()
 		end
 	end
-	if workspace.Info.ChallengeNumber.Value == 9 then
+	if getChallengeNumber() == 9 then
 		HealthFrame.TextHealth.Text = "Health: 1/100"
 		HealthFrame.Fill.Size = UDim2.fromScale(1 / 100, 1)
 	end
@@ -3910,7 +3928,7 @@ events.Client.StartGUI.OnClientEvent:Connect(function(Bool, payload)
 	local raidValue = info.Raid.Value
 	local infinityValue = info.Infinity.Value
 	local eventValue = info.Event.Value
-	local challengeNumber = info.ChallengeNumber.Value
+	local challengeNumber = getChallengeNumber()
 	local difficultyValue = info:FindFirstChild("Difficulty") and info.Difficulty.Value or ""
 
 	if type(payload) == "table" then
@@ -3931,7 +3949,8 @@ events.Client.StartGUI.OnClientEvent:Connect(function(Bool, payload)
 	local resolvedDifficulty = resolveStartDifficultyLabel(modeValue, difficultyValue, infinityValue)
 	Frame.Visible = true
 	if challengeNumber > 0 then
-		Frame.InformationFrame.ModeText.Text = ChallengeModule.Data[challengeNumber].Name
+		local challengeData = ChallengeModule.Data[challengeNumber]
+		Frame.InformationFrame.ModeText.Text = challengeData and challengeData.Name or "Challenge"
 		applyStartDifficultyStyle(Frame.InformationFrame.ModeText, "Challenge")
 	elseif eventValue then
 		warn("Event Textttttt")

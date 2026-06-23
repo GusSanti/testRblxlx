@@ -6,6 +6,15 @@ local ChallengeModule = require(ReplicatedStorage.Modules.ChallengeModule)
 local ReceiveRewardsEvent = ReplicatedStorage.Events.Client.ReceiveRewards
 local FriendBonus = require(script.Parent.FriendBonus)
 
+local function getInfoNumber(name, defaultValue)
+	local value = info:FindFirstChild(name)
+	if value and value:IsA("ValueBase") and typeof(value.Value) == "number" then
+		return value.Value
+	end
+
+	return defaultValue
+end
+
 return function(player)
 	local challengeData = ChallengeModule.Data[Variables.challenge]
 	local playerExpBefore = player.PlayerExp.Value
@@ -27,6 +36,6 @@ return function(player)
 	end
 
 	FriendBonus.Apply(player, receiveRewards, true)
-	player.LastChallengeCompletedUniqueId.Value = info.ChallengeUniqueId.Value
+	player.LastChallengeCompletedUniqueId.Value = getInfoNumber("ChallengeUniqueId", 0)
 	ReceiveRewardsEvent:FireClient(player,receiveRewards)
 end

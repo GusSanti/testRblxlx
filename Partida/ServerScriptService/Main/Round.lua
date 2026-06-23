@@ -35,6 +35,15 @@ local Variables = require(script.Variables)
 local Event = workspace.Info.Event
 local Parties = require(script.Parent.Parties)
 
+local function getInfoNumber(name, defaultValue)
+	local value = info:FindFirstChild(name)
+	if value and value:IsA("ValueBase") and typeof(value.Value) == "number" then
+		return value.Value
+	end
+
+	return defaultValue
+end
+
 
 local StreaksDatastore = DataStoreService:GetOrderedDataStore('Streak')
 local XPHandler
@@ -248,15 +257,15 @@ function round.StartGame(host)
 		Raid = info.Raid.Value,
 		Infinity = info.Infinity.Value,
 		Event = info.Event.Value,
-		ChallengeNumber = info.ChallengeNumber.Value
+		ChallengeNumber = getInfoNumber("ChallengeNumber", -1)
 	})
 
 	task.wait(6.5)
 
 	Variables.infinity = info.Infinity.Value
 	Variables.raid = info.Raid.Value
-	Variables.challenge = info.ChallengeNumber.Value
-	local challengeRewardNumber = info.ChallengRewardeNumber.Value
+	Variables.challenge = getInfoNumber("ChallengeNumber", -1)
+	local challengeRewardNumber = getInfoNumber("ChallengRewardeNumber", 0)
 
 
 	local ChallengeModeTable = {
