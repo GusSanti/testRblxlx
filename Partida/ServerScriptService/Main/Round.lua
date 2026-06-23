@@ -117,6 +117,14 @@ local function setTutorialArenaResult(player, won)
 	tutorialState.completed.Value = won
 end
 
+local function finalizeTutorialArenaPlayers(won)
+	for _, player in Players:GetPlayers() do
+		if isTutorialArenaInProgress(player) then
+			setTutorialArenaResult(player, won)
+		end
+	end
+end
+
 local function forceTeleportPlayer(v)
 	local s,e = nil,nil
 	repeat
@@ -416,15 +424,21 @@ function round.StartGame(host)
 			Variables.died = true
 			info.Victory.Value = false
 		end
+		local roundWon = Variables.win and not Variables.died and not playerBaseDestroyed
 
-		require(script.Libs.RewardsLib)
+		info.Victory.Value = roundWon
+		info.GameOver.Value = true
+		info.Message.Value = if roundWon then "VICTORY" else "GAME OVER"
+
+		finalizeTutorialArenaPlayers(roundWon)
+
+		local rewardsLoaded, rewardsError = pcall(require, script.Libs.RewardsLib)
+		if not rewardsLoaded then
+			warn("[Round] RewardsLib failed to load:", rewardsError)
+		end
 
 		local function handleRewards()
 			for _, player in Players:GetPlayers() do
-				if isTutorialArenaInProgress(player) then
-					setTutorialArenaResult(player, true)
-				end
-
 				info.Victory.Changed:Connect(function()
 					if info.Victory.Value and Event.Value and player:FindFirstChild("EventAttempts").Value >= 500 then
 						player.EventAttempts.Value = 0
@@ -447,15 +461,7 @@ function round.StartGame(host)
 			end
 		end
 
-		local roundWon = Variables.win and not Variables.died and not playerBaseDestroyed
-
 		if roundWon then
-			info.Victory.Value = true
-			info.GameOver.Value = true
-			info.Message.Value = "VICTORY"
-
-
-
 			local s,e = pcall(function()
 
 				for i,v in Players:GetChildren() do
@@ -476,16 +482,6 @@ function round.StartGame(host)
 			handleRewards()
 		else
 			print('We lost :(')
-			info.Victory.Value = false
-			info.GameOver.Value = true
-			info.Message.Value = "GAME OVER"
-
-			for i,v in Players:GetChildren() do
-				if isTutorialArenaInProgress(v) then
-					setTutorialArenaResult(v, false)
-				end
-			end
-
 		end
 	else
 		assert("MAP VARIABLE IS NIL")
