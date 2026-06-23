@@ -68,6 +68,19 @@ local function shouldSkipTutorial()
 		or getInfoNumber("ChallengeNumber", -1) ~= -1
 end
 
+local function isTutorialArenaInProgress()
+	local tutorialModeCompleted = player:FindFirstChild("TutorialModeCompleted")
+	local tutorialWinValue = player:FindFirstChild("TutorialWin")
+	local tutorialCompletedValue = player:FindFirstChild("TutorialCompleted")
+
+	return tutorialModeCompleted
+		and tutorialWinValue
+		and tutorialCompletedValue
+		and tutorialModeCompleted.Value == true
+		and tutorialWinValue.Value == false
+		and tutorialCompletedValue.Value == false
+end
+
 local function RunTutorial()
 	if shouldSkipTutorial() then
 		return
@@ -135,17 +148,10 @@ local function RunTutorial()
 	warn("[TUTORIAL]: Completed :)")
 end
 
-if player:GetAttribute("TutorialWin") then
-	return
-end
-
 repeat
 	task.wait(0.1)
 until player:FindFirstChild("DataLoaded")
 
-local tutorialModeCompleted = player:FindFirstChild("TutorialModeCompleted")
-local tutorialWinValue = player:FindFirstChild("TutorialWin")
-
-if tutorialModeCompleted and tutorialModeCompleted.Value == true and tutorialWinValue and not tutorialWinValue.Value then
+if isTutorialArenaInProgress() then
 	RunTutorial()
 end
