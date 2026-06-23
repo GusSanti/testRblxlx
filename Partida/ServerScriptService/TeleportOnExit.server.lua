@@ -14,6 +14,16 @@ local function main()
 
 	local events = ReplicatedStorage:WaitForChild("Events")
 	local exitEvent = events:WaitForChild("ExitGame")
+	local info = workspace:WaitForChild("Info")
+
+	local function getInfoNumber(name, defaultValue)
+		local value = info:FindFirstChild(name)
+		if value and value:IsA("ValueBase") and typeof(value.Value) == "number" then
+			return value.Value
+		end
+
+		return defaultValue
+	end
 
 	local worldReservePlace = nil
 
@@ -29,7 +39,7 @@ local function main()
 			events.Client.Teleporting:FireClient(player, "Lobby")
 		elseif decision == "Replay" then
 			if locked then return end
-			--if workspace.Info.ChallengeNumber.Value > 0 then return end
+			--if getInfoNumber("ChallengeNumber", -1) > 0 then return end
 			locked = true
 
 			print('REPLAYINGG')
@@ -53,16 +63,19 @@ local function main()
 				Competitive = workspace.Info.Competitive.Value
 			})
 
-			if workspace.Info.ChallengeNumber.Value > 0 then
+			local challengeNumber = getInfoNumber("ChallengeNumber", -1)
+			if challengeNumber > 0 then
+				local challengeUniqueId = getInfoNumber("ChallengeUniqueId", 0)
+				local challengeRewardNumber = getInfoNumber("ChallengRewardeNumber", 0)
 				options:SetTeleportData({
 					World = workspace.Info.World.Value,
 					Level = workspace.Info.Level.Value,
 					Mode = workspace.Info.Mode.Value,
 					Raid = workspace.Info.Raid.Value,
 					OwnerId = workspace.Info.OwnerId.Value,
-					ChallengeNumber = workspace.Info.ChallengeNumber.Value,
-					ChallengeUniqueId = workspace.Info.ChallengeUniqueId.Value,
-					ChallengeRewardNumber = workspace.Info.ChallengRewardeNumber.Value,
+					ChallengeNumber = challengeNumber,
+					ChallengeUniqueId = challengeUniqueId,
+					ChallengeRewardNumber = challengeRewardNumber,
 					Event = workspace.Info.Event.Value
 				})
 				print("Challenge Restart")
@@ -73,9 +86,9 @@ local function main()
 						workspace.Info.World.Value, 
 						workspace.Info.Level.Value, 
 						workspace.Info.Mode.Value, 
-						workspace.Info.ChallengeNumber.Value, 
-						workspace.Info.ChallengeUniqueId.Value, 
-						workspace.Info.ChallengRewardeNumber.Value,
+						challengeNumber,
+						challengeUniqueId,
+						challengeRewardNumber,
 						workspace.Info.Event.Value
 					)
 				end

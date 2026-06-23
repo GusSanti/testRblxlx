@@ -51,6 +51,24 @@ end
 ensureInfoValue("Versus", "BoolValue", false)
 ensureInfoValue("ChallengeNumber", "IntValue", -1)
 
+local function getChallengeNumber()
+	local challengeNumber = info:FindFirstChild("ChallengeNumber")
+	if challengeNumber and challengeNumber:IsA("ValueBase") and typeof(challengeNumber.Value) == "number" then
+		return challengeNumber.Value
+	end
+
+	return -1
+end
+
+local function getChallengeData()
+	local challengeNumber = getChallengeNumber()
+	if challengeNumber == -1 then
+		return nil
+	end
+
+	return ChallengeModule.Data[challengeNumber]
+end
+
 local maxTowers
 local tower = {}
 local PlayerTowers = {}
@@ -876,11 +894,9 @@ function tower.Spawn(player:Player, value:StringValue, cframe:CFrame, previous:M
 					priceMultiplier = (1-(Traits.Traits[value:GetAttribute("Trait")]["Money"]/100))
 				end
 			end
-			if info.ChallengeNumber.Value ~= -1 then
-				local challengeData = ChallengeModule.Data[info.ChallengeNumber.Value]
-				if challengeData and challengeData.UnitStats ~= nil then
-					priceMultiplier += (challengeData.UnitStats.Price / 100)
-				end
+			local challengeData = getChallengeData()
+			if challengeData and challengeData.UnitStats ~= nil then
+				priceMultiplier += (challengeData.UnitStats.Price / 100)
 			end
 
 			newTower = GetUnitModel[name]:Clone()
@@ -1216,11 +1232,9 @@ function tower.CheckSpawn(player:Player, value:StringValue, previous:Model, isSp
 		end
 	end
 
-	if info.ChallengeNumber.Value ~= -1 then
-		local challengeData = ChallengeModule.Data[info.ChallengeNumber.Value]
-		if challengeData and challengeData.UnitStats ~= nil then
-			priceMultiplier += (challengeData.UnitStats.Price / 100)
-		end
+	local challengeData = getChallengeData()
+	if challengeData and challengeData.UnitStats ~= nil then
+		priceMultiplier += (challengeData.UnitStats.Price / 100)
 	end
 
 	local price = upgradeStats["Upgrades"][1].Price * priceMultiplier
@@ -1304,11 +1318,9 @@ functions.Upgrade.OnServerInvoke = function (player : Player,tower : Model)
 			end
 		end 		
 
-		if info.ChallengeNumber.Value ~= -1 then
-			local challengeData = ChallengeModule.Data[info.ChallengeNumber.Value]
-			if challengeData and challengeData.UnitStats ~= nil then
-				priceMultiplier += (challengeData.UnitStats.Price / 100)
-			end
+		local challengeData = getChallengeData()
+		if challengeData and challengeData.UnitStats ~= nil then
+			priceMultiplier += (challengeData.UnitStats.Price / 100)
 		end
 
 		local price = UnitStats[Config.Upgrades.Value+1].Price * priceMultiplier

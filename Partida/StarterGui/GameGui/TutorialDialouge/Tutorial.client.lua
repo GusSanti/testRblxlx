@@ -22,6 +22,15 @@ local gameOverConnection = nil
 
 local lostText = "Oh no! You ended up losing, no worries, you can try again."
 
+local function getInfoNumber(name: string, defaultValue: number)
+	local value = Info:FindFirstChild(name)
+	if value and value:IsA("ValueBase") and typeof(value.Value) == "number" then
+		return value.Value
+	end
+
+	return defaultValue
+end
+
 local function animateText(text: string)
 	local characters = string.split(text or "", "")
 	label.Text = ""
@@ -56,7 +65,7 @@ local function shouldSkipTutorial()
 	return Info.Raid.Value == true
 		or Info.Infinity.Value == true
 		or Info.Event.Value == true
-		or Info.ChallengeNumber.Value ~= -1
+		or getInfoNumber("ChallengeNumber", -1) ~= -1
 end
 
 local function isTutorialArenaInProgress()
