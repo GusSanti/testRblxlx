@@ -62,7 +62,7 @@ local VALID_PLACEMENT_OUTLINE = Color3.fromRGB(216, 255, 156)
 local INVALID_PLACEMENT_COLOR = Color3.fromRGB(255, 74, 74)
 local INVALID_PLACEMENT_OUTLINE = Color3.fromRGB(255, 186, 186)
 local PlacementDebug = {
-	enabled = true,
+	enabled = false,
 	moveInterval = 0.35,
 	minSurfaceNormalY = 0.65,
 	lastSignature = nil,
@@ -123,7 +123,7 @@ local spectatingTower = nil
 local spectateStopConnection = nil :: RBXScriptConnection?
 local spectateTowerAncestryConnection = nil :: RBXScriptConnection?
 local spectateVisualState = {}
-local PREVIEW_DEBUG_ENABLED = true
+local PREVIEW_DEBUG_ENABLED = false
 local slotUiReady = false
 local slotUiRequestedVisible = true
 -- FUNCTIONS

@@ -20,6 +20,8 @@ local ORIGINAL_ENABLED_ATTRIBUTE = "OriginalMobEnabled"
 local PATH_HEIGHT_OFFSET_ATTRIBUTE = "PathHeightOffset"
 local LAST_RECOVERY_ATTRIBUTE = "LastGroundRecoveryAt"
 local RECOVERY_COUNT_ATTRIBUTE = "GroundRecoveryCount"
+local REMOVAL_PENDING_ATTRIBUTE = "PendingRemoval"
+local DEFEATED_ATTRIBUTE = "Defeated"
 
 local function ensureMobCollisionGroup()
 	pcall(function()
@@ -70,6 +72,25 @@ local function getModelRootPart(model)
 	end
 
 	return model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+end
+
+local function getMobHumanoid(model)
+	if not model or not model.Parent then
+		return nil
+	end
+
+	return model:FindFirstChildOfClass("Humanoid")
+end
+
+local function isMobPendingRemoval(model)
+	return model and model:GetAttribute(REMOVAL_PENDING_ATTRIBUTE) == true
+end
+
+local function isMobActive(model)
+	local humanoid = getMobHumanoid(model)
+	return humanoid ~= nil
+		and humanoid.Health > 0
+		and not isMobPendingRemoval(model)
 end
 
 local function getSpawnCFrameFromMap(map, team)
@@ -193,6 +214,62 @@ local function setMobHidden(model, hidden)
 	end
 end
 
+local function markMobInactive(model, reason)
+	if not model or not model.Parent then
+		return false
+	end
+
+	if isMobPendingRemoval(model) then
+		return false
+	end
+
+	model:SetAttribute(REMOVAL_PENDING_ATTRIBUTE, true)
+	model:SetAttribute(DEFEATED_ATTRIBUTE, true)
+	if reason then
+		model:SetAttribute("RemovalReason", tostring(reason))
+	end
+
+	local humanoid = getMobHumanoid(model)
+	if humanoid then
+		humanoid.WalkSpeed = 0
+	end
+
+	setMobHidden(model, true)
+
+	for _, descendant in ipairs(model:GetDescendants()) do
+		if descendant:IsA("BasePart") then
+			descendant.CanCollide = false
+			descendant.CanTouch = false
+			descendant.CanQuery = false
+			descendant.AssemblyLinearVelocity = Vector3.zero
+			descendant.AssemblyAngularVelocity = Vector3.zero
+		end
+	end
+
+	return true
+end
+
+local function cleanupMobModel(model, reason)
+	if not model then
+		return false
+	end
+
+	markMobInactive(model, reason)
+
+	if not model.Parent then
+		return false
+	end
+
+	local success, err = pcall(function()
+		model:Destroy()
+	end)
+	if not success then
+		warn("[Mob] Failed to destroy mob:", model.Name, reason or "Unknown", err)
+	end
+
+	return success
+end
+
 local function stopMobMovement(model, reveal)
 	if not model or not model.Parent then
 		return
@@ -228,12 +305,16 @@ function mob.Move(newMob, map, team)
 	local root = newMob:WaitForChild("HumanoidRootPart")
 	local waypoints = getWaypointFolder(map, team)
 	if not waypoints then
-		newMob:Destroy()
+		cleanupMobModel(newMob, "MissingWaypoints")
 		return
 	end
 
 	for waypoint=newMob.MovingTo.Value, #waypoints:GetChildren() do
 		if not newMob:FindFirstChild("MovingTo") then
+			return
+		end
+
+		if isMobPendingRemoval(newMob) then
 			return
 		end
 
@@ -259,7 +340,7 @@ function mob.Move(newMob, map, team)
 		setMobHidden(newMob, false)
 		humanoid:MoveTo(moveTarget)
 
-		while newMob.Parent and root.Parent and humanoid.Health > 0 and getFlatDistance(root.Position, moveTarget) > ARRIVAL_DISTANCE do
+		while newMob.Parent and root.Parent and humanoid.Health > 0 and not isMobPendingRemoval(newMob) and getFlatDistance(root.Position, moveTarget) > ARRIVAL_DISTANCE do
 			if info.GameOver.Value then
 				stopMobMovement(newMob, true)
 				return
@@ -281,16 +362,22 @@ function mob.Move(newMob, map, team)
 		return
 	end
 
+	if isMobPendingRemoval(newMob) then
+		return
+	end
+
 	setMobHidden(newMob, false)
 
+	local damageToDeal = humanoid.Health
+
 	if newMob.Parent then
-		newMob:Destroy()
+		cleanupMobModel(newMob, "ReachedBase")
 	end
 
 	if not info.Versus.Value then
-		map.Base.Humanoid:TakeDamage(math.min(humanoid.Health, map.Base.Humanoid.Health))
+		map.Base.Humanoid:TakeDamage(math.min(damageToDeal, map.Base.Humanoid.Health))
 	else
-		map[team .. 'Base'].Humanoid:TakeDamage(math.min(humanoid.Health, map[team .. 'Base'].Humanoid.Health))
+		map[team .. 'Base'].Humanoid:TakeDamage(math.min(damageToDeal, map[team .. 'Base'].Humanoid.Health))
 	end
 end
 
@@ -306,6 +393,9 @@ function mob.StopAll(revealHidden)
 		end
 	end
 end
+
+mob.IsActive = isMobActive
+mob.Cleanup = cleanupMobModel
 
 local function cloneScript(mobType, parent)
 	if not mobType then return end
@@ -335,6 +425,8 @@ function mob.Spawn(name, quantity, map, old, health, money, speed, isBoss, unitS
 
 			local newMob = mobExists:Clone()
 			newMob:SetAttribute("MobHidden", false)
+			newMob:SetAttribute(REMOVAL_PENDING_ATTRIBUTE, false)
+			newMob:SetAttribute(DEFEATED_ATTRIBUTE, false)
 
 			if not newMob:FindFirstChild('Type') then
 				local val = Instance.new('StringValue', newMob)
@@ -426,8 +518,25 @@ function mob.Spawn(name, quantity, map, old, health, money, speed, isBoss, unitS
 			local HealthMultiplier = script.Parent:GetAttribute("EnemyHealthMultiplier")
 			local info = workspace.Info
 
+			newMob.Humanoid.HealthChanged:Connect(function(currentHealth)
+				if currentHealth > 0 then
+					return
+				end
+
+				markMobInactive(newMob, "HealthReachedZero")
+				task.delay(0.35, function()
+					if newMob.Parent then
+						cleanupMobModel(newMob, "HealthReachedZeroCleanup")
+					end
+				end)
+			end)
+
 			newMob.Humanoid.Died:Connect(function()
-				if typeof(money) == "number" then
+				local rewardsOk, rewardsErr = pcall(function()
+					if typeof(money) ~= "number" then
+						return
+					end
+
 					local moneyReward = GameBalance.ApplyEnemyKillMoney(money)
 					for _, player in game.Players:GetPlayers() do
 						local bypass = not info.Versus.Value
@@ -444,18 +553,18 @@ function mob.Spawn(name, quantity, map, old, health, money, speed, isBoss, unitS
 								end
 							end)
 
-							if isBoss then
-								if not info.Infinity.Value and not info.Raid.Value and not isbossrush then
-									QuestHandler.UpdateProgressAll(player, "KillStoryBosses", 1)
-								end
+							if isBoss and not info.Infinity.Value and not info.Raid.Value and not isbossrush then
+								QuestHandler.UpdateProgressAll(player, "KillStoryBosses", 1)
 							end
 						end
 					end
+				end)
+				if not rewardsOk then
+					warn("[Mob] Failed to process mob death rewards:", newMob.Name, rewardsErr)
 				end
+
 				task.wait(0.2)
-				if newMob.Parent then
-					newMob:Destroy()
-				end
+				cleanupMobModel(newMob, "HumanoidDied")
 			end)
 
 			task.spawn(function()
@@ -466,8 +575,8 @@ function mob.Spawn(name, quantity, map, old, health, money, speed, isBoss, unitS
 							countPart += 1
 						end
 					end
-					if countPart == 0 and newMob:FindFirstChild("Humanoid") and newMob.Humanoid.Health > 0 then
-						newMob:Destroy()
+					if countPart == 0 then
+						cleanupMobModel(newMob, "EmptyBody")
 					end
 				end
 

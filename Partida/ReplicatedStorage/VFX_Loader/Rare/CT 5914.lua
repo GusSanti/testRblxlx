@@ -17,7 +17,6 @@ end
 
 local function canAttack(HRP, target)
 	if not target or not target:FindFirstChild("HumanoidRootPart") then
-		warn("no target")
 		return false
 	end
 

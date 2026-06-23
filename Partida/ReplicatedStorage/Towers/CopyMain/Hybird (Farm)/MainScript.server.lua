@@ -69,10 +69,7 @@ local FarmHybridFunctions = {
 
 		game.ReplicatedStorage.Events.VFX_Remote:FireAllClients({UnitName.Name, upgradeStats.AttackName}, script.Parent.HumanoidRootPart, target)
 
-		local damageResult = TowerFunctions.DamageFunction(script.Parent, target)
-		if damageResult == false then
-			warn("[TowerDamageDebug]", "DamageFunction returned false", script.Parent:GetFullName(), target:GetFullName())
-		end
+		TowerFunctions.DamageFunction(script.Parent, target)
 
 		local attackDuration = 0
 		for i, v in upgradeStats.MultiDamageDelays do

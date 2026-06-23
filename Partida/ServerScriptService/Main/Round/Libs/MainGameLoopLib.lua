@@ -102,15 +102,30 @@ local function canMarkWin()
 	return not Variables.died and not info.GameOver.Value and not didMainBaseFall()
 end
 
+local function countActiveMobsInFolder(folder)
+	if not folder then
+		return 0
+	end
+
+	local activeCount = 0
+	for _, mobModel in ipairs(folder:GetChildren()) do
+		if mob.IsActive(mobModel) then
+			activeCount += 1
+		end
+	end
+
+	return activeCount
+end
+
 local function getActiveMobCount()
 	if info.Versus.Value then
 		local redMobs = workspace:FindFirstChild("RedMobs")
 		local blueMobs = workspace:FindFirstChild("BlueMobs")
-		return (redMobs and #redMobs:GetChildren() or 0) + (blueMobs and #blueMobs:GetChildren() or 0)
+		return countActiveMobsInFolder(redMobs) + countActiveMobsInFolder(blueMobs)
 	end
 
 	local mobsFolder = workspace:FindFirstChild("Mobs")
-	return mobsFolder and #mobsFolder:GetChildren() or 0
+	return countActiveMobsInFolder(mobsFolder)
 end
 
 local function canOpenSkipVote()
@@ -386,7 +401,7 @@ repeat
 							isBoss = true
 
 							task.spawn(function()
-								repeat task.wait() until not newMob or not newMob.Parent
+								repeat task.wait() until not newMob or not newMob.Parent or not mob.IsActive(newMob)
 								bossDead = true
 							end)
 							break

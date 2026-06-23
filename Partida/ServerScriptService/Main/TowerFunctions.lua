@@ -128,6 +128,30 @@ end
 
 module.TakeDamage = require(script.DealDamage)
 
+local function isTargetableMob(mob: Model?, towerType: string?)
+	if not mob or not mob.Parent then
+		return false
+	end
+
+	if mob:GetAttribute("PendingRemoval") == true or mob:GetAttribute("Defeated") == true then
+		return false
+	end
+
+	local humanoid = mob:FindFirstChildOfClass("Humanoid")
+	local root = mob:FindFirstChild("HumanoidRootPart")
+	local mobType = mob:FindFirstChild("Type")
+
+	if not humanoid or humanoid.Health <= 0 or not root or not mobType then
+		return false
+	end
+
+	if towerType and towerType ~= "Hybrid" and mobType.Value ~= towerType then
+		return false
+	end
+
+	return true
+end
+
 local function safeTakeDamage(humanoid: Humanoid?, tower: Model, damage: number, context: string)
 	if not humanoid or not humanoid.Parent then
 		debugDamage(tower, nil, `missing humanoid ({context})`, nil, false)
@@ -135,6 +159,11 @@ local function safeTakeDamage(humanoid: Humanoid?, tower: Model, damage: number,
 	end
 
 	local target = humanoid.Parent
+	if humanoid.Health <= 0 or target:GetAttribute("PendingRemoval") == true or target:GetAttribute("Defeated") == true then
+		debugDamage(tower, target, `ignored inactive target ({context})`, nil, false)
+		return false
+	end
+
 	local ok, result = pcall(module.TakeDamage, humanoid, tower, damage)
 	if not ok then
 		debugDamage(tower, target, `TakeDamage error ({context})`, result, true)
@@ -161,16 +190,14 @@ module.AOE = function(newTower:Model, damage:number)
 
 	for i, target2 in targetMobs do
 		pcall(function()
-			if newTower:FindFirstChild("HumanoidRootPart") then
+			if newTower:FindFirstChild("HumanoidRootPart") and isTargetableMob(target2, newTower.Config:FindFirstChild("Type").Value) then
 				local distance = (newTower.HumanoidRootPart.Position - target2.HumanoidRootPart.Position).Magnitude
 				if distance < TowerInfo.GetRange(newTower) then
-					if target2:FindFirstChild("Type").Value == newTower.Config:FindFirstChild("Type").Value or newTower.Config:FindFirstChild("Type").Value == "Hybrid" then
-						local targetHumanoid = target2:FindFirstChildOfClass("Humanoid")
-						if safeTakeDamage(targetHumanoid,newTower,damage,"AOE") then
-							hitCount += 1
-						end
-						statusEffects(config,target2)
+					local targetHumanoid = target2:FindFirstChildOfClass("Humanoid")
+					if safeTakeDamage(targetHumanoid,newTower,damage,"AOE") then
+						hitCount += 1
 					end
+					statusEffects(config,target2)
 				end
 			end
 		end)
@@ -197,7 +224,7 @@ module.Splash = function(newTower:Model, targetCFrame, damage:number)
 		end
 
 		for i, target2 in targetMobs do
-			if target2.Parent and target2:FindFirstChild('HumanoidRootPart') then
+			if isTargetableMob(target2, newTower.Config:FindFirstChild("Type").Value) then
 
 				local distance = (target2.HumanoidRootPart.Position - targetCFrame.Position).Magnitude
 
@@ -206,15 +233,11 @@ module.Splash = function(newTower:Model, targetCFrame, damage:number)
 				--print(config.AOESize.Value)
 
 				if distance < config.AOESize.Value then
-					local targetType = target2:FindFirstChild("Type")
-					local towerType = newTower.Config:FindFirstChild("Type")
-					if targetType and towerType and (targetType.Value == towerType.Value or towerType.Value == "Hybrid") then
-						local targetHumanoid = target2:FindFirstChildOfClass("Humanoid")
-						if safeTakeDamage(targetHumanoid,newTower,damage,"Splash") then
-							hitCount += 1
-						end
-						statusEffects(config,target2)
+					local targetHumanoid = target2:FindFirstChildOfClass("Humanoid")
+					if safeTakeDamage(targetHumanoid,newTower,damage,"Splash") then
+						hitCount += 1
 					end
+					statusEffects(config,target2)
 				end
 			end
 		end
@@ -269,7 +292,7 @@ module.ConeAOE = function(mainPart:BasePart,tower:Model,aoesize:number,damage:nu
 	local minimumPathHalfWidth = math.max((angle or 0) * 0.5, 1)
 
 	for i, v in targetMobs do
-		if v:IsA("Model") and v:FindFirstChild('HumanoidRootPart') then
+		if v:IsA("Model") and isTargetableMob(v, tower.Config:FindFirstChild("Type").Value) then
 			local offset = Vector3.new(v.HumanoidRootPart.Position.X - origin.X, 0, v.HumanoidRootPart.Position.Z - origin.Z)
 			local forwardDistance = offset:Dot(forward)
 			if forwardDistance >= 0 and forwardDistance <= range then
@@ -284,27 +307,20 @@ module.ConeAOE = function(mainPart:BasePart,tower:Model,aoesize:number,damage:nu
 	end
 
 	for i, v in enemies do
-		if v:FindFirstChild("Type") then
-			local targetType = v:FindFirstChild("Type")
-			local towerType = tower.Config:FindFirstChild("Type")
-			if targetType and towerType and (targetType.Value == towerType.Value or towerType.Value == "Hybrid") then
-				local targetHumanoid = v:FindFirstChildOfClass("Humanoid")
-				if safeTakeDamage(targetHumanoid,tower,damage,"Cone") then
-					hitCount += 1
-				end
+		if isTargetableMob(v, tower.Config:FindFirstChild("Type").Value) then
+			local targetHumanoid = v:FindFirstChildOfClass("Humanoid")
+			if safeTakeDamage(targetHumanoid,tower,damage,"Cone") then
+				hitCount += 1
 			end
 		end
 	end
 
 	if hitCount == 0 and priorityTarget then
 		local priorityHumanoid = priorityTarget:FindFirstChildOfClass("Humanoid")
-		local targetType = priorityTarget:FindFirstChild("Type")
-		local towerType = tower.Config:FindFirstChild("Type")
 		local rangePart = tower:FindFirstChild("HumanoidRootPart") or mainPart
 		local distance = priorityRoot and (priorityRoot.Position - rangePart.Position).Magnitude
-		local validType = targetType and towerType and (targetType.Value == towerType.Value or towerType.Value == "Hybrid")
 
-		if priorityHumanoid and priorityRoot and distance <= range and validType then
+		if priorityHumanoid and priorityRoot and distance <= range and isTargetableMob(priorityTarget, tower.Config:FindFirstChild("Type").Value) then
 			if safeTakeDamage(priorityHumanoid,tower,damage,"ConeFallback") then
 				hitCount += 1
 			end
@@ -349,9 +365,7 @@ module.FindTarget = function(newTower:Model)
 	end
 
 	for i, mob in mobTarget do
-		if not mob:FindFirstChild("HumanoidRootPart") then continue end
-		if not mob:FindFirstChild("Type") then continue end
-		if towerType ~= "Hybrid" and mob.Type.Value ~= towerType then continue end
+		if not isTargetableMob(mob, towerType) then continue end
 
 		local newMobPositionForTower = Vector3.new(
 			mob.HumanoidRootPart.Position.X,
@@ -470,8 +484,7 @@ module.SpawnerFindTarget = function(vehicle:Model)
 	local filteredPlanePos = Vector3.new(planePos.X, 0, planePos.Z)
 
 	for i, mob:Model in mobTarget do
-		if not mob:FindFirstChild("HumanoidRootPart") then continue end
-		if not mob:FindFirstChild("Type") then continue end
+		if not isTargetableMob(mob, newTower.Config.Type.Value) then continue end
 
 		local distanceToWaypoint = nil
 

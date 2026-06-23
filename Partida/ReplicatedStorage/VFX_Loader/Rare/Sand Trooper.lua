@@ -27,11 +27,9 @@ end
 
 local function canAttack(HRP, target)
 	if not HRP or not HRP.Parent then
-		warn("no humanoidrootpart for unit")
 		return false
 	end
 	if not target or not target:FindFirstChild("HumanoidRootPart") then
-		warn("no target")
 		return false
 	end
 

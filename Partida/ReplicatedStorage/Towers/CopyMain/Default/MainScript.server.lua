@@ -155,7 +155,6 @@ local SupportFunctions = {
 		NewGUI.Frame.Percent.Text = tostring(Upgrades["Captain"].Upgrades[num.Value].Damage) .. "%"
 
 		num.Changed:Connect(function()
-			print(NewGUI, NewGUI.Parent)
 			NewGUI:FindFirstChild("Frame").Percent.Text = tostring(Upgrades["Captain"].Upgrades[num.Value].Damage) .. "%" 
 		end)
 	end,
@@ -185,7 +184,6 @@ local SupportFunctions = {
 		NewGUI.Frame.Percent.Text = tostring(Upgrades["Colonel"].Upgrades[num.Value].Damage) .. "%"
 
 		num.Changed:Connect(function()
-			print(NewGUI, NewGUI.Parent)
 			NewGUI:FindFirstChild("Frame").Percent.Text = tostring(Upgrades["Colonel"].Upgrades[num.Value].Damage) .. "%" 
 		end)
 	end,
@@ -215,7 +213,6 @@ local SupportFunctions = {
 		NewGUI.Frame.Percent.Text = tostring(Upgrades["Grand Moth Tarin"].Upgrades[num.Value].Damage) .. "%"
 
 		num.Changed:Connect(function()
-			print(NewGUI, NewGUI.Parent)
 			NewGUI:FindFirstChild("Frame").Percent.Text = tostring(Upgrades["Grand Moth Tarin"].Upgrades[num.Value].Damage) .. "%" 
 		end)
 	end,
@@ -257,10 +254,7 @@ local functions = {
 
 		game.ReplicatedStorage.Events.VFX_Remote:FireAllClients({UnitName.Name, upgradeStats.AttackName}, script.Parent.HumanoidRootPart, target)
 
-		local damageResult = TowerFunctions.DamageFunction(script.Parent, target)
-		if damageResult == false then
-			warn("[TowerDamageDebug]", "DamageFunction returned false", script.Parent:GetFullName(), target:GetFullName())
-		end
+		TowerFunctions.DamageFunction(script.Parent, target)
 
 		local attackDuration = 0
 		for i, v in upgradeStats.MultiDamageDelays do
@@ -287,10 +281,7 @@ local functions = {
 
 		game.ReplicatedStorage.Events.VFX_Remote:FireAllClients({UnitName.Name,upgradeStats.AttackName},script.Parent.HumanoidRootPart,target)
 
-		local damageResult = TowerFunctions.DamageFunction(script.Parent,target)
-		if damageResult == false then
-			warn("[TowerDamageDebug]", "DamageFunction returned false", script.Parent:GetFullName(), target:GetFullName())
-		end
+		TowerFunctions.DamageFunction(script.Parent,target)
 
 		local attackDuration = 0
 		if upgradeStats.MultiDamageDelays then
@@ -336,6 +327,5 @@ local functions = {
 while task.wait() do
 	--ErrorModule.wrap(main)
 	local upgradeStats = UnitName["Upgrades"][script.Parent.Config.Upgrades.Value]
-	print(upgradeStats, upgradeStats.Type)
 	functions[upgradeStats.Type](upgradeStats)
 end
