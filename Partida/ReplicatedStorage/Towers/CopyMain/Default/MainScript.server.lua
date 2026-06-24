@@ -40,181 +40,79 @@ end
 
 local Duplicates = {}
 local EchoCounter = 0
+local SupportGuiConnections = setmetatable({}, { __mode = "k" })
+
+local function setupSupportGui(Model: Model, buffText: string, upgradeName: string)
+	EchoCounter += 1
+
+	local config = Model:FindFirstChild("Config")
+	if not config then return end
+
+	if not config:FindFirstChild("TowerNumber") then
+		local towerNum = Instance.new("IntValue")
+		towerNum.Name = "TowerNumber"
+		towerNum.Value = EchoCounter
+		towerNum.Parent = config
+	end
+
+	local head = Model:FindFirstChild("Head")
+	local num = config:FindFirstChild("Upgrades")
+	if not head or not num then return end
+
+	local NewGUI = head:FindFirstChild(TowerGUI.Name)
+	if not NewGUI then
+		NewGUI = TowerGUI:Clone()
+		NewGUI.Parent = head
+	end
+
+	local frame = NewGUI:FindFirstChild("Frame")
+	if not frame then
+		warn(`Support GUI "{TowerGUI.Name}" is missing Frame for {Model.Name}`)
+		return
+	end
+
+	frame.Buffing.Text = buffText
+	frame.Percent.Text = tostring(Upgrades[upgradeName].Upgrades[num.Value].Damage) .. "%"
+
+	if SupportGuiConnections[Model] then
+		SupportGuiConnections[Model]:Disconnect()
+	end
+
+	SupportGuiConnections[Model] = num.Changed:Connect(function()
+		if not NewGUI.Parent then return end
+
+		local currentFrame = NewGUI:FindFirstChild("Frame")
+		if not currentFrame then return end
+
+		currentFrame.Percent.Text = tostring(Upgrades[upgradeName].Upgrades[num.Value].Damage) .. "%"
+	end)
+end
+
 local SupportFunctions = {
 	["Echo"] = function(Model : Model, upgradestats)
-		EchoCounter += 1
-
-		local config = Model:FindFirstChild("Config")
-		if not config:FindFirstChild("TowerNumber") then
-			local towerNum = Instance.new("IntValue")
-			towerNum.Name = "TowerNumber"
-			towerNum.Value = EchoCounter
-			towerNum.Parent = config
-		end
-
-		for _, v in ipairs(Model:FindFirstChild("Head"):GetChildren()) do
-			if v:IsA("BillboardGui") then
-				v:Destroy()
-			end
-		end
-
-		local num = config:FindFirstChild("Upgrades")
-
-		local NewGUI = TowerGUI:Clone()
-		NewGUI.Parent = Model:FindFirstChild("Head")
-		NewGUI.Frame.Buffing.Text = "Type Buff: DMG"
-		NewGUI.Frame.Percent.Text = tostring(Upgrades["Echo"].Upgrades[num.Value].Damage) .. "%"
-
-		num.Changed:Connect(function()
-			NewGUI.Frame.Percent.Text = tostring(Upgrades["Echo"].Upgrades[num.Value].Damage) .. "%" 
-		end)
+		setupSupportGui(Model, "Type Buff: DMG", "Echo")
 	end,
 
 
 	["Tech"] = function(Model : Model, upgradestats)
-		EchoCounter += 1
-
-		local config = Model:FindFirstChild("Config")
-		if not config:FindFirstChild("TowerNumber") then
-			local towerNum = Instance.new("IntValue")
-			towerNum.Name = "TowerNumber"
-			towerNum.Value = EchoCounter
-			towerNum.Parent = config
-		end
-
-		for _, v in ipairs(Model:FindFirstChild("Head"):GetChildren()) do
-			if v:IsA("BillboardGui") then
-				v:Destroy()
-			end
-		end
-
-		local num = config:FindFirstChild("Upgrades")
-
-		local NewGUI = TowerGUI:Clone()
-		NewGUI.Parent = Model:FindFirstChild("Head")
-		NewGUI.Frame.Buffing.Text = "Type Buff: Cooldown"
-		NewGUI.Frame.Percent.Text =  tostring(Upgrades["Tech"].Upgrades[num.Value].Damage) .. "%"
-
-		num.Changed:Connect(function()
-			NewGUI.Frame.Percent.Text =  tostring(Upgrades["Tech"].Upgrades[num.Value].Damage) .. "%"
-		end)
+		setupSupportGui(Model, "Type Buff: Cooldown", "Tech")
 	end,
 
 
 	["Mas Med"] = function(Model : Model, upgradestats)
-		EchoCounter += 1
-
-		local config = Model:FindFirstChild("Config")
-		if not config:FindFirstChild("TowerNumber") then
-			local towerNum = Instance.new("IntValue")
-			towerNum.Name = "TowerNumber"
-			towerNum.Value = EchoCounter
-			towerNum.Parent = config
-		end
-
-		for _, v in ipairs(Model:FindFirstChild("Head"):GetChildren()) do
-			if v:IsA("BillboardGui") then
-				v:Destroy()
-			end
-		end
-
-		local num = config:FindFirstChild("Upgrades")
-
-		local NewGUI = TowerGUI:Clone()
-		NewGUI.Parent = Model:FindFirstChild("Head")
-		NewGUI.Frame.Buffing.Text = "Type Buff: DMG"
-		NewGUI.Frame.Percent.Text =  tostring(Upgrades["Mas Med"].Upgrades[num.Value].Damage) .. "%" 
-
-		num.Changed:Connect(function()
-			NewGUI.Frame.Percent.Text =  tostring(Upgrades["Mas Med"].Upgrades[num.Value].Damage) .. "%" 
-		end)
+		setupSupportGui(Model, "Type Buff: DMG", "Mas Med")
 	end,
 
 	["Captain"] = function(Model : Model, upgradestats)
-		EchoCounter += 1
-
-		local config = Model:FindFirstChild("Config")
-		if not config:FindFirstChild("TowerNumber") then
-			local towerNum = Instance.new("IntValue")
-			towerNum.Name = "TowerNumber"
-			towerNum.Value = EchoCounter
-			towerNum.Parent = config
-		end
-
-		for _, v in ipairs(Model:FindFirstChild("Head"):GetChildren()) do
-			if v:IsA("BillboardGui") then
-				v:Destroy()
-			end
-		end
-
-		local num = config:FindFirstChild("Upgrades")
-
-		local NewGUI = TowerGUI:Clone()
-		NewGUI.Parent = Model:FindFirstChild("Head")
-		NewGUI.Frame.Buffing.Text = "Type Buff: DMG"
-		NewGUI.Frame.Percent.Text = tostring(Upgrades["Captain"].Upgrades[num.Value].Damage) .. "%"
-
-		num.Changed:Connect(function()
-			NewGUI:FindFirstChild("Frame").Percent.Text = tostring(Upgrades["Captain"].Upgrades[num.Value].Damage) .. "%" 
-		end)
+		setupSupportGui(Model, "Type Buff: DMG", "Captain")
 	end,
 
 	["Colonel"] = function(Model : Model, upgradestats)
-		EchoCounter += 1
-
-		local config = Model:FindFirstChild("Config")
-		if not config:FindFirstChild("TowerNumber") then
-			local towerNum = Instance.new("IntValue")
-			towerNum.Name = "TowerNumber"
-			towerNum.Value = EchoCounter
-			towerNum.Parent = config
-		end
-
-		for _, v in ipairs(Model:FindFirstChild("Head"):GetChildren()) do
-			if v:IsA("BillboardGui") then
-				v:Destroy()
-			end
-		end
-
-		local num = config:FindFirstChild("Upgrades")
-
-		local NewGUI = TowerGUI:Clone()
-		NewGUI.Parent = Model:FindFirstChild("Head")
-		NewGUI.Frame.Buffing.Text = "Type Buff: Range"
-		NewGUI.Frame.Percent.Text = tostring(Upgrades["Colonel"].Upgrades[num.Value].Damage) .. "%"
-
-		num.Changed:Connect(function()
-			NewGUI:FindFirstChild("Frame").Percent.Text = tostring(Upgrades["Colonel"].Upgrades[num.Value].Damage) .. "%" 
-		end)
+		setupSupportGui(Model, "Type Buff: Range", "Colonel")
 	end,
 
 	["Grand Moth Tarin"] = function(Model : Model, upgradestats)
-		EchoCounter += 1
-
-		local config = Model:FindFirstChild("Config")
-		if not config:FindFirstChild("TowerNumber") then
-			local towerNum = Instance.new("IntValue")
-			towerNum.Name = "TowerNumber"
-			towerNum.Value = EchoCounter
-			towerNum.Parent = config
-		end
-
-		for _, v in ipairs(Model:FindFirstChild("Head"):GetChildren()) do
-			if v:IsA("BillboardGui") then
-				v:Destroy()
-			end
-		end
-
-		local num = config:FindFirstChild("Upgrades")
-
-		local NewGUI = TowerGUI:Clone()
-		NewGUI.Parent = Model:FindFirstChild("Head")
-		NewGUI.Frame.Buffing.Text = "Type Buff: DMG"
-		NewGUI.Frame.Percent.Text = tostring(Upgrades["Grand Moth Tarin"].Upgrades[num.Value].Damage) .. "%"
-
-		num.Changed:Connect(function()
-			NewGUI:FindFirstChild("Frame").Percent.Text = tostring(Upgrades["Grand Moth Tarin"].Upgrades[num.Value].Damage) .. "%" 
-		end)
+		setupSupportGui(Model, "Type Buff: DMG", "Grand Moth Tarin")
 	end,
 }
 
